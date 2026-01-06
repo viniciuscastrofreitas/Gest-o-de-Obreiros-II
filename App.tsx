@@ -5,11 +5,12 @@ import { loadReports, saveReports, exportData, importData } from './utils/storag
 import Modal from './components/Modal';
 
 const App: React.FC = () => {
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const getYesterdayStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
+  // Função robusta para pegar a data local YYYY-MM-DD sem erros de fuso
+  const getLocalDateStr = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const [reports, setReports] = useState<Report[]>([]);
@@ -17,10 +18,7 @@ const App: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [shareMonth, setShareMonth] = useState(new Date().getMonth());
-  const [shareYear, setShareYear] = useState(new Date().getFullYear());
-
-  const [date, setDate] = useState(getTodayStr());
+  const [date, setDate] = useState(getLocalDateStr(new Date()));
   const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek | ''>('');
   const [portao, setPortao] = useState<WorkerName | ''>('');
   const [louvor, setLouvor] = useState<WorkerName | ''>('');
@@ -42,7 +40,7 @@ const App: React.FC = () => {
   const handleSaveReport = () => {
     const isSegunda = dayOfWeek === 'SEG';
     if (!date || !dayOfWeek || !portao || !louvor || (!isSegunda && !palavra)) {
-      alert(`⚠️ Por favor, preencha os campos obrigatórios (Data, Dia e Obreiros).`);
+      alert(`⚠️ Por favor, preencha todos os campos obrigatórios.`);
       return;
     }
 
@@ -58,7 +56,7 @@ const App: React.FC = () => {
     };
 
     setReports(prev => [newReport, ...prev]);
-    setDate(getTodayStr());
+    setDate(getLocalDateStr(new Date()));
     setDayOfWeek('');
     setPortao('');
     setLouvor('');
@@ -115,7 +113,7 @@ const App: React.FC = () => {
   }, [reports, searchTerm]);
 
   const consultHistory = (worker: WorkerName | '', category: TaskCategory) => {
-    if (!worker) return alert('Selecione o obreiro para consultar.');
+    if (!worker) return;
     const history = reports.filter(r => {
       if (category === 'Portão') return r.portao === worker;
       if (category === 'Louvor') return r.louvor === worker;
@@ -125,18 +123,18 @@ const App: React.FC = () => {
 
     setModalTitle(`${worker}`);
     setModalContent(
-      <div className="space-y-4">
-        <div className="flex justify-between items-center border-b pb-3">
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tarefa: {category}</span>
-          <span className="bg-indigo-900 text-yellow-400 px-3 py-1 rounded-lg text-[10px] font-black">{history.length} VEZES</span>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center border-b pb-4">
+          <span className="text-sm font-black text-slate-500 uppercase tracking-widest">{category}</span>
+          <span className="bg-indigo-900 text-yellow-400 px-4 py-2 rounded-xl text-base font-black">{history.length} VEZES</span>
         </div>
-        <div className="grid gap-2 max-h-[350px] overflow-y-auto pr-1">
+        <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-1">
           {history.length > 0 ? history.map(h => (
-            <div key={h.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
-              <span className="font-black text-slate-700">{new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-              <span className="text-[9px] bg-indigo-50 px-2 py-1 rounded border font-black uppercase text-indigo-600">{h.dayOfWeek}</span>
+            <div key={h.id} className="flex justify-between items-center p-5 bg-slate-50 rounded-2xl border border-slate-100 text-xl font-black text-slate-800">
+              <span>{new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+              <span className="text-xs bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 uppercase text-indigo-900">{h.dayOfWeek}</span>
             </div>
-          )) : <p className="text-gray-400 text-center py-6 text-sm font-bold">Nenhum registro encontrado.</p>}
+          )) : <p className="text-slate-400 text-center py-10 text-lg font-bold">Nenhum registro encontrado.</p>}
         </div>
       </div>
     );
@@ -155,73 +153,76 @@ const App: React.FC = () => {
   }, [reports]);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-slate-900">
+    <div className="min-h-screen bg-slate-50 pb-24 text-slate-900">
       {showToast && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] animate-in zoom-in-95 duration-300">
-          <div className="bg-green-600 text-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center gap-2 border-4 border-white">
-            <span className="material-icons text-4xl">check_circle</span>
-            <span className="font-black text-sm uppercase tracking-widest">Salvo com Sucesso!</span>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-indigo-900/40 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-green-600 text-white px-12 py-12 rounded-[3rem] shadow-2xl flex flex-col items-center gap-5 border-4 border-white animate-in zoom-in-90">
+            <span className="material-icons text-8xl">verified</span>
+            <span className="font-black text-2xl uppercase tracking-[0.1em] text-center">Salvo no Histórico!</span>
           </div>
         </div>
       )}
 
-      <header className="bg-indigo-900 text-white shadow-xl sticky top-0 z-40">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-800 rounded-xl flex items-center justify-center shadow-lg border border-indigo-700 overflow-hidden">
-              <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="ID Obreiro" className="w-8 h-8 object-contain" />
+      <header className="bg-indigo-950 text-white shadow-2xl sticky top-0 z-40">
+        <div className="px-6 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 bg-indigo-800 rounded-2xl flex items-center justify-center shadow-lg border border-indigo-700 overflow-hidden">
+              <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="ID" className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="text-base font-black uppercase tracking-tight">ICM SANTO ANTÔNIO II</h1>
-              <p className="text-[9px] text-indigo-300 font-black uppercase tracking-[0.2em]">Gestão de Obreiros</p>
+              <h1 className="text-xl font-black uppercase tracking-tight">ICM SANTO ANTÔNIO II</h1>
+              <p className="text-[10px] text-indigo-400 font-black uppercase tracking-[0.3em]">Gestão Ministerial</p>
             </div>
           </div>
-          <div className="text-[9px] font-black bg-indigo-950 px-3 py-1.5 rounded-full uppercase border border-indigo-800">{reports.length} CULTOS</div>
         </div>
-        <nav className="flex bg-indigo-950">
+        <nav className="flex bg-indigo-900/50 backdrop-blur-md">
           {[
-            { id: 'form', icon: 'add_circle', label: 'NOVO' },
-            { id: 'history', icon: 'history', label: 'HISTÓRICO' },
-            { id: 'stats', icon: 'analytics', label: 'RESUMO' },
-            { id: 'backup', icon: 'settings', label: 'SISTEMA' },
+            { id: 'form', icon: 'edit_calendar', label: 'NOVO' },
+            { id: 'history', icon: 'format_list_bulleted', label: 'HISTÓRICO' },
+            { id: 'stats', icon: 'leaderboard', label: 'RESUMO' },
+            { id: 'backup', icon: 'tune', label: 'SISTEMA' },
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-3 flex flex-col items-center gap-1 transition-all border-b-4 ${
-                activeTab === tab.id ? 'border-yellow-400 text-yellow-400 bg-indigo-900' : 'border-transparent text-indigo-400 opacity-60'
+              className={`flex-1 py-5 flex flex-col items-center gap-2 transition-all border-b-[6px] ${
+                activeTab === tab.id ? 'border-yellow-400 text-yellow-400 bg-indigo-950 shadow-inner' : 'border-transparent text-indigo-400 opacity-60'
               }`}
             >
-              <span className="material-icons text-xl">{tab.icon}</span>
-              <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
+              <span className="material-icons text-3xl">{tab.icon}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
             </button>
           ))}
         </nav>
       </header>
 
-      <main className="max-w-md mx-auto px-4 mt-6">
+      <main className="max-w-md mx-auto px-5 mt-10">
         {activeTab === 'form' && (
-          <div className="bg-white rounded-3xl shadow-xl p-6 space-y-6 border border-slate-100 animate-in fade-in duration-500">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-indigo-900 uppercase block tracking-widest ml-1">Data e Dia</label>
-              <div className="grid grid-cols-1 gap-3">
+          <div className="bg-white rounded-[3rem] shadow-2xl p-8 space-y-10 border border-slate-100 animate-in slide-in-from-bottom-5 duration-500">
+            <div className="space-y-5">
+              <label className="text-sm font-black text-indigo-950 uppercase block tracking-widest ml-1">Data do Culto</label>
+              <div className="grid grid-cols-1 gap-5">
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm outline-none focus:border-indigo-500 transition-all shadow-inner"
+                  className="w-full p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-black text-2xl outline-none focus:border-indigo-600 transition-all shadow-inner text-center text-indigo-950"
                 />
-                <div className="flex gap-2">
-                  <button onClick={() => setDate(getTodayStr())} className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${date === getTodayStr() ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>Hoje</button>
-                  <button onClick={() => setDate(getYesterdayStr())} className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${date === getYesterdayStr() ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>Ontem</button>
+                <div className="flex gap-4">
+                  <button onClick={() => setDate(getLocalDateStr(new Date()))} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-md ${date === getLocalDateStr(new Date()) ? 'bg-indigo-700 text-white ring-4 ring-indigo-100' : 'bg-slate-100 text-slate-500'}`}>Hoje</button>
+                  <button onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 1);
+                    setDate(getLocalDateStr(d));
+                  }} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-md ${date !== getLocalDateStr(new Date()) ? 'bg-indigo-700 text-white ring-4 ring-indigo-100' : 'bg-slate-100 text-slate-500'}`}>Ontem</button>
                 </div>
               </div>
-              <div className="grid grid-cols-6 gap-1.5 mt-2">
+              <div className="grid grid-cols-6 gap-2.5 mt-4">
                 {DAYS_OF_WEEK.map(day => (
                   <button 
                     key={day} 
                     onClick={() => setDayOfWeek(day)} 
-                    className={`py-2 rounded-lg font-black text-[10px] border-2 transition-all ${dayOfWeek === day ? 'bg-indigo-900 text-yellow-400 border-indigo-900' : 'bg-white text-slate-400 border-slate-100'}`}
+                    className={`py-4 rounded-xl font-black text-sm border-2 transition-all ${dayOfWeek === day ? 'bg-indigo-900 text-yellow-400 border-indigo-900 shadow-xl scale-110' : 'bg-white text-slate-400 border-slate-100'}`}
                   >
                     {day}
                   </button>
@@ -235,85 +236,94 @@ const App: React.FC = () => {
               const isOptional = cat === 'Palavra' && dayOfWeek === 'SEG';
 
               return (
-                <div key={cat} className="space-y-2">
-                  <label className="text-[10px] font-black text-indigo-900 uppercase block tracking-widest ml-1">
-                    {cat} {isOptional && <span className="text-[8px] opacity-50 lowercase italic">(opc)</span>}
+                <div key={cat} className="space-y-4">
+                  <label className="text-sm font-black text-indigo-950 uppercase block tracking-widest ml-1">
+                    {cat} {isOptional && <span className="text-[11px] opacity-60 lowercase italic font-bold">(opcional)</span>}
                   </label>
-                  <div className="flex gap-2">
-                    <select 
-                      value={val} 
-                      onChange={(e) => set(e.target.value as WorkerName)}
-                      className="flex-1 p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-black text-xs outline-none focus:border-indigo-500 shadow-inner"
-                    >
-                      <option value="">Selecione...</option>
-                      {WORKERS.map(w => <option key={w} value={w}>{w}</option>)}
-                    </select>
-                    <button onClick={() => consultHistory(val as any, cat)} className="bg-indigo-50 text-indigo-700 px-4 rounded-xl border border-indigo-100 active:scale-90 transition-all">
-                      <span className="material-icons text-lg">history</span>
-                    </button>
-                  </div>
+                  <select 
+                    value={val} 
+                    onChange={(e) => set(e.target.value as WorkerName)}
+                    className="w-full p-6 bg-slate-50 border-2 border-slate-200 rounded-2xl font-black text-xl outline-none focus:border-indigo-600 shadow-inner appearance-none transition-all text-indigo-950"
+                  >
+                    <option value="">Selecione...</option>
+                    {WORKERS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
                 </div>
               );
             })}
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-indigo-900 uppercase block tracking-widest ml-1">Texto / Mensagem</label>
+            <div className="space-y-4">
+              <label className="text-sm font-black text-indigo-950 uppercase block tracking-widest ml-1">Texto / Mensagem Bíblica</label>
               <textarea 
                 value={textoBiblico}
                 onChange={(e) => setTextoBiblico(e.target.value)}
-                placeholder="Ex: Salmos 23"
-                className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-xs outline-none h-20 shadow-inner resize-none focus:border-indigo-500 transition-all"
+                placeholder="Ex: Salmos 23:1-4"
+                className="w-full p-6 bg-slate-50 border-2 border-slate-200 rounded-3xl font-bold text-xl outline-none h-40 shadow-inner resize-none focus:border-indigo-600 transition-all text-slate-700"
               />
             </div>
 
-            <button onClick={handleSaveReport} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3">
-              <span className="material-icons">check</span> Salvar Relatório
+            <button onClick={handleSaveReport} className="w-full bg-green-600 text-white py-8 rounded-3xl font-black uppercase text-2xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 border-b-8 border-green-800">
+              <span className="material-icons text-4xl">add_task</span> Salvar Escala
             </button>
           </div>
         )}
 
         {activeTab === 'history' && (
-          <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="space-y-8 animate-in fade-in duration-300">
             <div className="relative">
               <input 
                 type="text" 
-                placeholder="Buscar no histórico..." 
+                placeholder="Pesquisar por obreiro ou texto..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3.5 bg-white rounded-2xl font-bold text-xs outline-none shadow-md border border-slate-100"
+                className="w-full pl-14 pr-6 py-6 bg-white rounded-[2rem] font-bold text-xl outline-none shadow-xl border border-slate-200"
               />
-              <span className="material-icons absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+              <span className="material-icons absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-3xl">search</span>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-8 relative">
+              <div className="absolute left-10 top-0 bottom-0 w-1 bg-slate-200 -z-10 rounded-full"></div>
               {filteredReports.map(report => (
-                <div key={report.id} className="bg-white rounded-3xl shadow-md border border-slate-100 overflow-hidden">
-                  <div className="px-5 py-3 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                <div key={report.id} className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden ml-4">
+                  <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50/30">
                     <div className="flex flex-col">
-                      <span className="font-black text-xs text-slate-900">{new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                      <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">{report.dayOfWeek}</span>
+                      <span className="font-black text-2xl text-indigo-950">{new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                      <span className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em]">{report.dayOfWeek}</span>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleShareWhatsApp(report)} className="w-8 h-8 flex items-center justify-center text-emerald-600"><span className="material-icons text-lg">share</span></button>
-                      <button onClick={() => handleDeleteReport(report.id)} className="w-8 h-8 flex items-center justify-center text-rose-400"><span className="material-icons text-lg">delete</span></button>
+                    <div className="flex gap-4">
+                      <button onClick={() => handleShareWhatsApp(report)} className="w-14 h-14 flex items-center justify-center text-emerald-600 bg-white rounded-2xl shadow-sm border border-emerald-100 active:scale-90 transition-all"><span className="material-icons text-3xl">share</span></button>
+                      <button onClick={() => handleDeleteReport(report.id)} className="w-14 h-14 flex items-center justify-center text-rose-500 bg-white rounded-2xl shadow-sm border border-rose-100 active:scale-90 transition-all"><span className="material-icons text-3xl">delete</span></button>
                     </div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 font-bold uppercase text-[9px]">Portão</span>
-                      <span className="font-black text-sky-700">{report.portao}</span>
+                  <div className="p-8 space-y-6">
+                    <div className="flex items-center gap-6">
+                      <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center text-sky-800"><span className="material-icons text-2xl">door_front</span></div>
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Portão</span>
+                        <span className="font-black text-slate-900 text-xl">{report.portao}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 font-bold uppercase text-[9px]">Louvor</span>
-                      <span className="font-black text-violet-700">{report.louvor}</span>
+                    <div className="flex items-center gap-6">
+                      <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center text-violet-800"><span className="material-icons text-2xl">mic</span></div>
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Louvor</span>
+                        <span className="font-black text-slate-900 text-xl">{report.louvor}</span>
+                      </div>
                     </div>
                     {report.palavra !== 'NÃO HOUVE' && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400 font-bold uppercase text-[9px]">Palavra</span>
-                        <span className="font-black text-amber-700">{report.palavra}</span>
+                      <div className="flex items-center gap-6">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-800"><span className="material-icons text-2xl">menu_book</span></div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Palavra</span>
+                          <span className="font-black text-slate-900 text-xl">{report.palavra}</span>
+                        </div>
                       </div>
                     )}
-                    <div className="mt-2 p-3 bg-slate-50 rounded-xl text-slate-500 italic text-[10px]">"{report.textoBiblico}"</div>
+                    <div className="mt-4 p-6 bg-slate-50 rounded-3xl border-l-8 border-indigo-400">
+                      <p className="text-slate-600 font-bold text-lg leading-relaxed italic">
+                        "{report.textoBiblico}"
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -322,30 +332,30 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'stats' && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase px-1 tracking-widest">Resumo Ministerial</h2>
-            <div className="grid gap-3">
-              {WORKERS.filter(w => w !== 'TRANSMISSÃO' && w !== 'VISITANTE').map(worker => {
+          <div className="space-y-10 animate-in fade-in duration-300 mb-10">
+            <h2 className="text-base font-black text-slate-500 uppercase px-1 tracking-[0.4em] text-center">Desempenho por Obreiro</h2>
+            <div className="grid gap-8">
+              {WORKERS.filter(w => w !== 'TRANSMISSÃO' && w !== 'VISITANTE' && w !== 'NÃO HOUVE').map(worker => {
                 const s = workerStats[worker];
                 const total = s.portao + s.louvor + s.palavra;
                 return (
-                  <div key={worker} className="bg-white rounded-3xl shadow-md border border-slate-100 overflow-hidden">
-                    <div className="px-5 py-3 bg-indigo-900 text-white flex justify-between items-center">
-                      <span className="font-black text-xs uppercase">{worker}</span>
-                      <span className="text-[9px] font-black bg-yellow-400 text-indigo-950 px-2 py-0.5 rounded-full">{total} ATOS</span>
+                  <div key={worker} className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
+                    <div className="px-10 py-6 bg-indigo-950 text-white flex justify-between items-center">
+                      <span className="font-black text-xl uppercase tracking-tight">{worker}</span>
+                      <span className="text-xs font-black bg-yellow-400 text-indigo-950 px-5 py-2.5 rounded-full shadow-lg border-2 border-white/20">{total} ATOS</span>
                     </div>
-                    <div className="p-3 grid grid-cols-3 gap-2">
-                      <button onClick={() => consultHistory(worker, 'Portão')} className="bg-sky-50 p-2 rounded-xl border border-sky-100 flex flex-col items-center active:scale-95 transition-all">
-                        <span className="text-[7px] font-black text-sky-400 uppercase mb-1">Portão</span>
-                        <span className="text-lg font-black text-sky-900">{s.portao}</span>
+                    <div className="p-6 grid grid-cols-3 gap-5">
+                      <button onClick={() => consultHistory(worker, 'Portão')} className="bg-sky-50 p-6 rounded-[2rem] border-2 border-sky-200 flex flex-col items-center active:scale-95 transition-all shadow-sm">
+                        <span className="text-[10px] font-black text-sky-700 uppercase mb-2">Portão</span>
+                        <span className="text-3xl font-black text-sky-950">{s.portao}</span>
                       </button>
-                      <button onClick={() => consultHistory(worker, 'Louvor')} className="bg-violet-50 p-2 rounded-xl border border-violet-100 flex flex-col items-center active:scale-95 transition-all">
-                        <span className="text-[7px] font-black text-violet-400 uppercase mb-1">Louvor</span>
-                        <span className="text-lg font-black text-violet-900">{s.louvor}</span>
+                      <button onClick={() => consultHistory(worker, 'Louvor')} className="bg-violet-50 p-6 rounded-[2rem] border-2 border-violet-200 flex flex-col items-center active:scale-95 transition-all shadow-sm">
+                        <span className="text-[10px] font-black text-violet-700 uppercase mb-2">Louvor</span>
+                        <span className="text-3xl font-black text-violet-950">{s.louvor}</span>
                       </button>
-                      <button onClick={() => consultHistory(worker, 'Palavra')} className="bg-amber-50 p-2 rounded-xl border border-amber-100 flex flex-col items-center active:scale-95 transition-all">
-                        <span className="text-[7px] font-black text-amber-500 uppercase mb-1">Palavra</span>
-                        <span className="text-lg font-black text-amber-900">{s.palavra}</span>
+                      <button onClick={() => consultHistory(worker, 'Palavra')} className="bg-amber-50 p-6 rounded-[2rem] border-2 border-amber-200 flex flex-col items-center active:scale-95 transition-all shadow-sm">
+                        <span className="text-[10px] font-black text-amber-800 uppercase mb-2">Palavra</span>
+                        <span className="text-3xl font-black text-amber-950">{s.palavra}</span>
                       </button>
                     </div>
                   </div>
@@ -356,22 +366,25 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'backup' && (
-          <div className="bg-white rounded-3xl shadow-xl p-8 space-y-8 animate-in zoom-in-95 duration-300">
-            <div className="text-center space-y-2">
-              <span className="material-icons text-5xl text-indigo-200">cloud_done</span>
-              <h2 className="text-xl font-black text-indigo-950 uppercase">Configurações</h2>
+          <div className="bg-white rounded-[3.5rem] shadow-2xl p-12 space-y-12 animate-in zoom-in-95 duration-300 border border-slate-100">
+            <div className="text-center space-y-5">
+              <div className="inline-block p-8 bg-indigo-50 rounded-[2.5rem] mb-2 shadow-inner">
+                <span className="material-icons text-8xl text-indigo-400">admin_panel_settings</span>
+              </div>
+              <h2 className="text-4xl font-black text-indigo-950 uppercase tracking-tight">Sistema</h2>
+              <p className="text-base font-bold text-slate-400 px-4 leading-relaxed">Proteja seus dados. Exporte o backup regularmente para evitar perdas.</p>
             </div>
-            <div className="space-y-3">
-              <button onClick={handleBackup} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
-                <span className="material-icons text-sm">download</span> Exportar Backup
+            <div className="space-y-6">
+              <button onClick={handleBackup} className="w-full bg-slate-900 text-white py-7 rounded-3xl font-black text-xl flex items-center justify-center gap-5 uppercase tracking-widest shadow-2xl active:scale-95 transition-all border-b-8 border-black">
+                <span className="material-icons text-3xl">cloud_download</span> Exportar Dados
               </button>
-              <label className="w-full bg-indigo-50 text-indigo-800 py-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 border border-indigo-100 cursor-pointer uppercase tracking-widest">
-                <span className="material-icons text-sm">upload_file</span> Restaurar Backup
+              <label className="w-full bg-indigo-50 text-indigo-900 py-7 rounded-3xl font-black text-xl flex items-center justify-center gap-5 border-4 border-indigo-200 cursor-pointer uppercase tracking-widest active:scale-95 transition-all shadow-xl">
+                <span className="material-icons text-3xl">cloud_upload</span> Restaurar
                 <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
               </label>
-              <div className="pt-6">
-                <button onClick={() => confirm('Apagar tudo?') && setReports([])} className="w-full text-rose-500 py-3 text-[10px] font-black uppercase tracking-widest border border-rose-100 rounded-xl">
-                  Limpar Todos os Dados
+              <div className="pt-14 border-t-2 border-slate-100">
+                <button onClick={() => confirm('CUIDADO! Isso apagará TODO o histórico. Confirmar?') && setReports([])} className="w-full text-rose-600 py-6 text-sm font-black uppercase tracking-[0.3em] border-2 border-rose-100 rounded-[2rem] hover:bg-rose-50 transition-all active:bg-rose-100">
+                  Resetar Aplicativo
                 </button>
               </div>
             </div>
@@ -379,8 +392,8 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-12 text-center text-slate-300 font-black text-[8px] uppercase tracking-[0.4em] pb-10 px-6">
-        ICM SANTO ANTÔNIO II &bull; GESTÃO DE OBREIROS
+      <footer className="mt-24 text-center text-slate-400 font-black text-sm uppercase tracking-[0.5em] pb-20 px-10 leading-relaxed opacity-40">
+        ICM SANTO ANTÔNIO II<br/>RELATÓRIO DE CULTO
       </footer>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle}>{modalContent}</Modal>
