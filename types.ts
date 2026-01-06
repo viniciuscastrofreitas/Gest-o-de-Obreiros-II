@@ -1,3 +1,4 @@
+
 export type WorkerName = 
   | 'BENEDITO' | 'CLÁUDIO' | 'DAVID' | 'ETIEL' | 'FÁBIO'
   | 'LUIZ BORGES' | 'LUIZ CORREA' | 'MANOEL' 
@@ -25,3 +26,5 @@ export interface WorkerStat {
   count: number;
   dates: string[];
 }
+
+export type AppTab = 'form' | 'history' | 'stats' | 'availability' | 'backup';
