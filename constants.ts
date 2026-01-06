@@ -1,11 +1,20 @@
-
 import { WorkerName, DayOfWeek } from './types';
 
 export const WORKERS: WorkerName[] = [
-  'BENEDITO', 'CLÁUDIO', 'DAVID', 'ETIEL', 
-  'LUIZ BORGES', 'LUIZ CORREA', 'TRANSMISSÃO', 
-  'MANOEL', 'REGINALDO', 'ROBERTO', 
-  'VALDEMIRO', 'VINICIUS', 'VISITANTE'
+  'BENEDITO', 
+  'CLÁUDIO', 
+  'DAVID', 
+  'ETIEL', 
+  'FÁBIO',
+  'LUIZ BORGES', 
+  'LUIZ CORREA', 
+  'MANOEL',
+  'REGINALDO', 
+  'ROBERTO', 
+  'TRANSMISSÃO',
+  'VALDEMIRO', 
+  'VINICIUS', 
+  'VISITANTE'
 ];
 
 export const DAYS_OF_WEEK: DayOfWeek[] = ['EBD', 'DOM', 'SEG', 'TER', 'QUI', 'SAB'];

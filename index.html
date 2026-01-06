@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
 
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <title>Gestão de Obreiros ICM</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -41,12 +41,23 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('PWA Ativo'))
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('PWA Ativo');
+                        // Força atualização se houver nova versão
+                        reg.onupdatefound = () => {
+                            const installingWorker = reg.installing;
+                            installingWorker.onstatechange = () => {
+                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    window.location.reload();
+                                }
+                            };
+                        };
+                    })
                     .catch(err => console.log('Erro PWA:', err));
             });
         }
