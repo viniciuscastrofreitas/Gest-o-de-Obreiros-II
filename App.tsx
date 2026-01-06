@@ -117,7 +117,6 @@ const App: React.FC = () => {
   };
 
   const handleShareMonth = () => {
-    // Explicitly provided <string> generic to new Set to avoid unknown[] assignability error on line 120
     const months: string[] = [...new Set<string>(reports.map(r => r.date.substring(0, 7)))].sort().reverse();
     if (months.length === 0) return alert('Sem dados para compartilhar.');
 
@@ -227,7 +226,6 @@ const App: React.FC = () => {
       {/* Header Responsivo */}
       <header className="bg-indigo-950 text-white shadow-2xl overflow-hidden">
         <div className="max-w-3xl mx-auto px-6 pt-10 pb-16 flex items-center gap-5">
-          {/* Ícone clássico do obreiro (homem de terno) fornecido pelo usuário */}
           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center p-1 shadow-inner shrink-0">
             <img 
               src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
@@ -250,7 +248,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Navegação Estilo Pílula Clássica (Arredondada e Suave) */}
+      {/* Navegação Estilo Pílula Clássica */}
       <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-50">
         <div className="bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_20px_50px_rgba(30,27,75,0.15)] border border-slate-200 p-2 flex items-center justify-between">
           {[
@@ -453,11 +451,11 @@ const App: React.FC = () => {
                                     <div className="flex flex-col">
                                       <span className="font-black text-lg text-slate-800">{w.name}</span>
                                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                                        {w.lastDate ? `Visto em: ${w.lastDate.toLocaleDateString('pt-BR')}` : 'Sem registros'}
+                                        {w.lastDate ? `FUNÇÃO EXECUTADA EM: ${w.lastDate.toLocaleDateString('pt-BR')}` : 'Sem registros'}
                                       </span>
                                     </div>
-                                    <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${w.daysSince === Infinity ? 'bg-indigo-950 text-white' : isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}>
-                                      {w.daysSince === Infinity ? 'Novo' : `${w.daysSince}d`}
+                                    <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${w.daysSince === Infinity ? 'bg-indigo-900 text-white' : isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                                      {w.daysSince === Infinity ? '-' : `${w.daysSince}d`}
                                     </div>
                                   </div>
                                 );
