@@ -19,7 +19,6 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
-  // Estados para acordeão na aba Ociosidade
   const [expandedDays, setExpandedDays] = useState<Set<DayOfWeek>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
@@ -70,9 +69,8 @@ const App: React.FC = () => {
 
   const handleSaveReport = () => {
     const isOptionalDay = dayOfWeek === 'SEG' || dayOfWeek === 'EBD';
-    
     if (!date || !dayOfWeek || !portao || !louvor || (!isOptionalDay && !palavra)) {
-      alert(`⚠️ Por favor, preencha os campos obrigatórios.`);
+      alert(`⚠️ Por favor, preencha todos os campos obrigatórios.`);
       return;
     }
 
@@ -99,31 +97,34 @@ const App: React.FC = () => {
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  const handleDeleteReport = (id: string) => {
-    if (confirm('Deseja apagar este registro?')) {
-      setReports(prev => prev.filter(r => r.id !== id));
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const importedData = await importData(file);
+        if (Array.isArray(importedData)) {
+          setReports(importedData);
+          alert('Backup restaurado com sucesso!');
+        }
+      } catch (err) { alert('Erro ao importar arquivo.'); }
     }
   };
 
   const handleShareWhatsApp = (report: Report) => {
     const formattedDate = new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR');
-    const text = `*RELATÓRIO DE CULTO - ${report.dayOfWeek}*\n` +
-                 `📅 *Data:* ${formattedDate}\n` +
-                 `🚪 *Portão:* ${report.portao}\n` +
-                 `🎤 *Louvor:* ${report.louvor}\n` +
-                 (report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : '') +
-                 `📜 *Texto:* ${report.textoBiblico}`;
+    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n📅 *Data:* ${formattedDate}\n🚪 *Portão:* ${report.portao}\n🎤 *Louvor:* ${report.louvor}\n${report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : ''}📜 *Texto:* ${report.textoBiblico}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleShareMonth = () => {
-    const months = Array.from(new Set(reports.map(r => r.date.substring(0, 7)))).sort().reverse();
-    if (months.length === 0) return alert('Nenhum dado para compartilhar.');
+    // Explicitly provided <string> generic to new Set to avoid unknown[] assignability error on line 120
+    const months: string[] = [...new Set<string>(reports.map(r => r.date.substring(0, 7)))].sort().reverse();
+    if (months.length === 0) return alert('Sem dados para compartilhar.');
 
     setModalTitle('Relatório Mensal');
     setModalContent(
-      <div className="grid gap-3">
-        {months.map((m: string) => {
+      <div className="grid gap-4">
+        {months.map(m => {
           const [year, month] = m.split('-');
           const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('pt-BR', { month: 'long' });
           return (
@@ -131,17 +132,16 @@ const App: React.FC = () => {
               key={m}
               onClick={() => {
                 const monthReports = reports.filter(r => r.date.startsWith(m)).sort((a, b) => a.date.localeCompare(b.date));
-                let text = `*RELATÓRIOS DE ${monthName.toUpperCase()} / ${year}*\n\n`;
+                let text = `*RELATÓRIOS ICM - ${monthName.toUpperCase()} / ${year}*\n\n`;
                 monthReports.forEach(r => {
                   const day = r.date.split('-')[2];
                   text += `📅 *Dia ${day} (${r.dayOfWeek}):*\n`;
-                  text += `🚪 ${r.portao} | 🎤 ${r.louvor}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n`;
-                  text += `📜 ${r.textoBiblico}\n\n`;
+                  text += `🚪 ${r.portao} | 🎤 ${r.louvor}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n📜 ${r.textoBiblico}\n\n`;
                 });
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                 setModalOpen(false);
               }}
-              className="w-full py-5 bg-indigo-50 border border-indigo-100 rounded-xl text-lg font-black text-indigo-900 uppercase active:scale-95 transition-all"
+              className="w-full py-5 bg-indigo-50 border-2 border-indigo-100 rounded-3xl text-lg font-black text-indigo-900 uppercase active:scale-95 transition-all shadow-sm"
             >
               {monthName} / {year}
             </button>
@@ -152,31 +152,27 @@ const App: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleBackup = () => exportData(reports);
-  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const imported = await importData(file);
-        setReports(imported);
-        alert('Backup restaurado!');
-      } catch (err) { alert('Erro no backup.'); }
-    }
-  };
+  const showWorkerDetails = (worker: WorkerName, task: TaskCategory) => {
+    const filtered = reports.filter(r => {
+      if (task === 'Portão') return r.portao === worker;
+      if (task === 'Louvor') return r.louvor === worker;
+      if (task === 'Palavra') return r.palavra === worker && r.palavra !== 'NÃO HOUVE';
+      return false;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const filteredReports = useMemo(() => {
-    const sorted = [...reports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    if (!searchTerm) return sorted;
-    const lowerSearch = searchTerm.toLowerCase();
-    return sorted.filter(r => 
-      r.portao.toLowerCase().includes(lowerSearch) ||
-      r.louvor.toLowerCase().includes(lowerSearch) ||
-      r.palavra.toLowerCase().includes(lowerSearch) ||
-      r.textoBiblico.toLowerCase().includes(lowerSearch) ||
-      r.date.includes(lowerSearch) ||
-      r.dayOfWeek.toLowerCase().includes(lowerSearch)
+    setModalTitle(`${worker} - ${task}`);
+    setModalContent(
+      <div className="space-y-3 max-h-[60vh] overflow-y-auto no-scrollbar">
+        {filtered.length > 0 ? filtered.map((r) => (
+          <div key={r.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
+            <span className="font-black text-slate-800 text-lg">{new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+            <span className="text-xs font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter">{r.dayOfWeek}</span>
+          </div>
+        )) : <p className="text-center text-slate-400 py-4 font-bold">Nenhum registro encontrado.</p>}
+      </div>
     );
-  }, [reports, searchTerm]);
+    setModalOpen(true);
+  };
 
   const availabilityData = useMemo(() => {
     const workers = WORKERS.filter(w => w !== 'TRANSMISSÃO' && w !== 'VISITANTE' && w !== 'NÃO HOUVE');
@@ -184,7 +180,6 @@ const App: React.FC = () => {
 
     DAYS_OF_WEEK.forEach(day => {
       result[day] = { 'Portão': [], 'Louvor': [], 'Palavra': [] };
-
       (['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).forEach(task => {
         const workerList = workers.map(w => {
           const lastExec = reports
@@ -198,17 +193,11 @@ const App: React.FC = () => {
           const diffTime = lastExec ? new Date().getTime() - new Date(lastExec.date + 'T00:00:00').getTime() : Infinity;
           const daysSince = lastExec ? Math.floor(diffTime / (1000 * 60 * 60 * 24)) : Infinity;
 
-          return {
-            name: w,
-            lastDate: lastExec ? new Date(lastExec.date + 'T00:00:00') : null,
-            daysSince: daysSince
-          };
+          return { name: w, lastDate: lastExec ? new Date(lastExec.date + 'T00:00:00') : null, daysSince };
         });
-
         result[day][task] = workerList.sort((a, b) => b.daysSince - a.daysSince);
       });
     });
-
     return result;
   }, [reports]);
 
@@ -224,172 +213,196 @@ const App: React.FC = () => {
   }, [reports]);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32 text-slate-900">
-      {!isOnline && (
-        <div className="bg-rose-600 text-white text-center py-2 font-black text-[10px] uppercase tracking-widest sticky top-0 z-[60] shadow-md">
-          Conexão Offline - Dados salvos localmente
-        </div>
-      )}
-
+    <div className="min-h-screen bg-[#f8fafc] pb-40 font-sans text-slate-800">
+      {/* Toast Notificação */}
       {showToast && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-indigo-950/30 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-green-600 text-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center gap-3 border-2 border-white animate-in zoom-in-95">
-            <span className="material-icons text-5xl">check_circle</span>
-            <span className="font-black text-base uppercase tracking-wider text-center">Relatório Salvo!</span>
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10">
+          <div className="bg-indigo-950 text-amber-400 px-8 py-4 rounded-full shadow-2xl border border-white/10 flex items-center gap-3">
+            <span className="material-icons text-2xl">verified</span>
+            <span className="font-bold text-lg uppercase tracking-tight">Registro Salvo</span>
           </div>
         </div>
       )}
 
-      {/* Header Fixo no Topo */}
-      <header className="bg-indigo-950 text-white shadow-xl sticky top-0 z-40">
-        <div className="px-5 py-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-indigo-800 rounded-xl flex items-center justify-center border border-indigo-700">
-            <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="ID" className="w-6 h-6" />
+      {/* Header Responsivo */}
+      <header className="bg-indigo-950 text-white shadow-2xl overflow-hidden">
+        <div className="max-w-3xl mx-auto px-6 pt-10 pb-16 flex items-center gap-5">
+          {/* Ícone clássico do obreiro (homem de terno) fornecido pelo usuário */}
+          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center p-1 shadow-inner shrink-0">
+            <img 
+              src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
+              alt="Obreiro" 
+              className="w-full h-full object-contain"
+            />
           </div>
+          
           <div>
-            <h1 className="text-base font-black uppercase tracking-tight leading-none">SANTO ANTÔNIO II</h1>
-            <p className="text-[9px] text-indigo-400 font-black uppercase tracking-[0.2em] mt-0.5">Gestão Ministerial</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+              <span className="text-[11px] font-black tracking-[0.4em] uppercase text-indigo-300">Gestão de Obreiros</span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tighter">SANTO ANTÔNIO II</h1>
+            <div className="mt-2 inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full border border-white/10">
+              <span className="material-icons text-[12px] text-amber-400">equalizer</span>
+              <span className="text-[10px] font-black uppercase tracking-wider">{reports.length} Cultos Registrados</span>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Navegação Inferior Fixa */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-indigo-950/90 backdrop-blur-lg border-t border-indigo-800 z-50 flex items-center justify-around pb-safe px-2">
-        {[
-          { id: 'form', icon: 'add_circle', label: 'NOVO' },
-          { id: 'history', icon: 'list_alt', label: 'HISTÓRICO' },
-          { id: 'availability', icon: 'hourglass_empty', label: 'OCIOSIDADE' },
-          { id: 'stats', icon: 'analytics', label: 'RESUMO' },
-          { id: 'backup', icon: 'settings', label: 'SISTEMA' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id as any);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`flex flex-col items-center gap-1 py-3 px-1 transition-all flex-1 min-w-0 ${
-              activeTab === tab.id ? 'text-yellow-400 scale-110' : 'text-indigo-400 opacity-60'
-            }`}
-          >
-            <span className="material-icons text-2xl">{tab.icon}</span>
-            <span className="text-[8px] font-black uppercase tracking-tighter truncate w-full text-center">{tab.label}</span>
-          </button>
-        ))}
+      {/* Navegação Estilo Pílula Clássica (Arredondada e Suave) */}
+      <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-50">
+        <div className="bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_20px_50px_rgba(30,27,75,0.15)] border border-slate-200 p-2 flex items-center justify-between">
+          {[
+            { id: 'form', icon: 'add_circle', label: 'Novo' },
+            { id: 'history', icon: 'list_alt', label: 'Histórico' },
+            { id: 'availability', icon: 'hourglass_empty', label: 'Ociosidade' },
+            { id: 'stats', icon: 'analytics', label: 'Ranking' },
+            { id: 'backup', icon: 'settings', label: 'Ajustes' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex-1 flex flex-col items-center justify-center py-3 px-1 rounded-full transition-all duration-300 ${
+                activeTab === tab.id 
+                ? 'bg-indigo-950 text-amber-400 shadow-lg scale-105' 
+                : 'text-slate-400 hover:text-indigo-900'
+              }`}
+            >
+              <span className="material-icons text-3xl">{tab.icon}</span>
+              <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </nav>
 
-      <main className="max-w-md mx-auto px-4 mt-6">
+      {/* Área de Conteúdo */}
+      <main className="max-w-2xl mx-auto px-5 -mt-8">
         {activeTab === 'form' && (
-          <div className="bg-white rounded-3xl shadow-md p-6 space-y-6 border border-slate-100 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="space-y-3">
-              <label className="text-xs font-black text-indigo-950 uppercase block tracking-wider text-center">Data do Culto</label>
+          <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 border border-slate-100 animate-in fade-in slide-in-from-bottom-5 duration-500 space-y-8">
+            <div className="space-y-4">
+              <label className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] block text-center">Data do Culto</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full p-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl font-black text-lg outline-none focus:border-indigo-600 shadow-inner text-center"
+                className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black text-xl outline-none focus:border-indigo-600 transition-all text-center text-indigo-950 shadow-inner"
               />
-              <div className="flex gap-2">
-                <button onClick={() => setDate(getLocalDateStr(new Date()))} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${date === getLocalDateStr(new Date()) ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-500'}`}>Hoje</button>
-                <button onClick={() => {
-                  const d = new Date(); d.setDate(d.getDate() - 1);
-                  setDate(getLocalDateStr(d));
-                }} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${date !== getLocalDateStr(new Date()) ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-500'}`}>Ontem</button>
-              </div>
-              <div className="grid grid-cols-6 gap-1.5 mt-2">
+              <div className="grid grid-cols-6 gap-2">
                 {DAYS_OF_WEEK.map(day => (
-                  <button key={day} onClick={() => setDayOfWeek(day)} className={`py-2.5 rounded-lg font-black text-[10px] border-2 transition-all ${dayOfWeek === day ? 'bg-indigo-900 text-yellow-400 border-indigo-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>{day}</button>
+                  <button 
+                    key={day} 
+                    onClick={() => setDayOfWeek(day)} 
+                    className={`py-4 rounded-2xl font-black text-xs transition-all border-2 ${dayOfWeek === day ? 'bg-indigo-950 text-amber-400 border-indigo-950 shadow-md' : 'bg-white text-slate-400 border-slate-100'}`}
+                  >
+                    {day}
+                  </button>
                 ))}
               </div>
             </div>
 
-            {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map((cat) => {
-              const isOptionalDay = cat === 'Palavra' && (dayOfWeek === 'EBD' || dayOfWeek === 'SEG');
-              const val = cat === 'Portão' ? portao : cat === 'Louvor' ? louvor : palavra;
-              const set = cat === 'Portão' ? setPortao : cat === 'Louvor' ? setLouvor : setPalavra;
+            <div className="space-y-6">
+              {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map((cat) => {
+                const isOptional = cat === 'Palavra' && (dayOfWeek === 'EBD' || dayOfWeek === 'SEG');
+                const val = cat === 'Portão' ? portao : cat === 'Louvor' ? louvor : palavra;
+                const set = cat === 'Portão' ? setPortao : cat === 'Louvor' ? setLouvor : setPalavra;
 
-              return (
-                <div key={cat} className="space-y-2">
-                  <label className="text-[11px] font-black text-indigo-950 uppercase block tracking-widest ml-1">
-                    {cat} {isOptionalDay && <span className="text-[9px] opacity-50 italic lowercase font-bold">(opcional)</span>}
-                  </label>
-                  <select 
-                    value={val} 
-                    onChange={(e) => set(e.target.value as WorkerName)}
-                    className="w-full p-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl font-black text-sm outline-none focus:border-indigo-600 appearance-none text-indigo-950"
-                  >
-                    <option value="">Selecione o obreiro...</option>
-                    {WORKERS.map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-              );
-            })}
+                return (
+                  <div key={cat} className="space-y-3">
+                    <div className="flex justify-between items-center px-2">
+                      <label className="text-base font-black text-slate-500 uppercase tracking-widest">{cat}</label>
+                      {isOptional && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase italic">Opcional</span>}
+                    </div>
+                    <div className="relative">
+                      <select 
+                        value={val} 
+                        onChange={(e) => set(e.target.value as WorkerName)}
+                        className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black text-lg outline-none appearance-none focus:bg-white focus:border-indigo-600 transition-all text-slate-800 shadow-sm"
+                      >
+                        <option value="">Selecione...</option>
+                        {WORKERS.map(w => <option key={w} value={w}>{w}</option>)}
+                      </select>
+                      <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            <div className="space-y-2">
-              <label className="text-[11px] font-black text-indigo-950 uppercase block tracking-widest ml-1">Texto Bíblico / Mensagem</label>
+            <div className="space-y-3">
+              <label className="text-base font-black text-slate-500 uppercase tracking-widest px-2">Texto Bíblico / Mensagem</label>
               <textarea 
                 value={textoBiblico}
                 onChange={(e) => setTextoBiblico(e.target.value)}
-                placeholder="Ex: Salmos 119:105"
-                className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-base outline-none h-28 resize-none focus:border-indigo-600 text-slate-700"
+                placeholder="Referência ou título da mensagem..."
+                className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-lg outline-none h-32 resize-none focus:bg-white focus:border-indigo-600 transition-all text-slate-700 shadow-sm"
               />
             </div>
 
-            <button onClick={handleSaveReport} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase text-lg shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 mt-4 border-b-4 border-green-800">
-              <span className="material-icons">save</span> Salvar Registro
+            <button onClick={handleSaveReport} className="w-full bg-indigo-950 text-amber-400 py-6 rounded-full font-black uppercase text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3 border-b-4 border-amber-600/30 mt-4">
+              <span className="material-icons text-3xl">save_as</span> Confirmar Culto
             </button>
           </div>
         )}
 
         {activeTab === 'history' && (
-          <div className="space-y-5 animate-in fade-in duration-300">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+          <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+            <div className="flex gap-3">
+              <div className="bg-white rounded-full p-2 shadow-xl border border-slate-200 flex-1 flex items-center gap-3 px-6">
+                <span className="material-icons text-slate-300 text-2xl">search</span>
                 <input 
                   type="text" 
-                  placeholder="Pesquisar..." 
+                  placeholder="Pesquisar registros..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white rounded-2xl font-bold text-sm outline-none shadow-sm border border-slate-200"
+                  className="w-full py-4 bg-transparent outline-none font-bold text-lg text-slate-600"
                 />
-                <span className="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
               </div>
-              <button onClick={handleShareMonth} className="bg-indigo-900 text-white px-4 rounded-2xl shadow-sm active:scale-95 transition-all">
-                <span className="material-icons text-xl">ios_share</span>
+              <button 
+                onClick={handleShareMonth}
+                className="bg-indigo-950 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all"
+              >
+                <span className="material-icons text-3xl">ios_share</span>
               </button>
             </div>
 
-            <div className="space-y-4">
-              {filteredReports.map(report => (
-                <div key={report.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="px-5 py-3 border-b border-slate-50 flex justify-between items-center bg-indigo-50/20">
-                    <div className="flex flex-col">
-                      <span className="font-black text-base text-indigo-950">{new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{report.dayOfWeek}</span>
+            <div className="space-y-6">
+              {[...reports].filter(r => 
+                r.portao.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                r.louvor.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                r.palavra.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                r.textoBiblico.toLowerCase().includes(searchTerm.toLowerCase())
+              ).sort((a,b) => b.timestamp - a.timestamp).map(report => (
+                <div key={report.id} className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 relative overflow-hidden group animate-in slide-in-from-left-4">
+                  <div className="absolute top-0 left-0 w-2 h-full bg-indigo-900"></div>
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <span className="text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-1 block">{report.dayOfWeek}</span>
+                      <h3 className="text-2xl font-black text-slate-800">{new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR')}</h3>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => handleShareWhatsApp(report)} className="w-9 h-9 flex items-center justify-center text-emerald-600 bg-white rounded-lg border border-emerald-50"><span className="material-icons text-lg">share</span></button>
-                      <button onClick={() => handleDeleteReport(report.id)} className="w-9 h-9 flex items-center justify-center text-rose-500 bg-white rounded-lg border border-rose-50"><span className="material-icons text-lg">delete</span></button>
+                      <button onClick={() => handleShareWhatsApp(report)} className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all"><span className="material-icons text-2xl">share</span></button>
+                      <button onClick={() => confirm('Apagar permanentemente?') && setReports(prev => prev.filter(r => r.id !== report.id))} className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><span className="material-icons text-2xl">delete_outline</span></button>
                     </div>
                   </div>
-                  <div className="p-5 space-y-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-black uppercase text-[8px] tracking-widest">Portão</span>
-                      <span className="font-black text-slate-800">{report.portao}</span>
+                  <div className="grid gap-4 bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">door_front</span></div>
+                      <span className="text-lg font-black text-slate-700">{report.portao}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-black uppercase text-[8px] tracking-widest">Louvor</span>
-                      <span className="font-black text-slate-800">{report.louvor}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">lyrics</span></div>
+                      <span className="text-lg font-black text-slate-700">{report.louvor}</span>
                     </div>
                     {report.palavra !== 'NÃO HOUVE' && (
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-400 font-black uppercase text-[8px] tracking-widest">Palavra</span>
-                        <span className="font-black text-slate-800">{report.palavra}</span>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">menu_book</span></div>
+                        <span className="text-lg font-black text-slate-700">{report.palavra}</span>
                       </div>
                     )}
-                    <div className="mt-2 p-3 bg-slate-50 rounded-lg border-l-4 border-indigo-400">
-                      <p className="text-slate-600 font-bold text-xs leading-relaxed italic line-clamp-2">"{report.textoBiblico}"</p>
-                    </div>
+                  </div>
+                  <div className="mt-6 px-2 text-lg italic text-slate-500 font-medium border-l-4 border-slate-200 pl-4">
+                    "{report.textoBiblico}"
                   </div>
                 </div>
               ))}
@@ -398,56 +411,57 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'availability' && (
-          <div className="space-y-4 animate-in fade-in duration-300 mb-10">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase px-1 tracking-[0.2em] text-center">Controle de Ociosidade</h2>
+          <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase text-center tracking-[0.5em] mb-8">Controle de Ociosidade</h2>
             {DAYS_OF_WEEK.map(day => (
-              <div key={day} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div key={day} className="bg-white rounded-[2rem] shadow-lg border border-slate-200 overflow-hidden mb-4">
                 <button 
                   onClick={() => toggleDay(day)}
-                  className="w-full px-5 py-3 bg-indigo-950 text-white flex items-center justify-between"
+                  className={`w-full px-8 py-7 flex items-center justify-between transition-all ${expandedDays.has(day) ? 'bg-indigo-950 text-white' : 'bg-white text-slate-800'}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="material-icons text-lg text-yellow-400">calendar_today</span>
-                    <span className="font-black text-sm uppercase tracking-widest">{day}</span>
+                  <div className="flex items-center gap-4">
+                    <span className={`material-icons text-3xl ${expandedDays.has(day) ? 'text-amber-400' : 'text-indigo-600'}`}>calendar_month</span>
+                    <span className="font-black text-xl uppercase tracking-widest">{day}</span>
                   </div>
-                  <span className={`material-icons text-sm transition-transform ${expandedDays.has(day) ? 'rotate-180' : 'rotate-0'}`}>expand_more</span>
+                  <span className={`material-icons text-2xl transition-transform duration-300 ${expandedDays.has(day) ? 'rotate-180' : ''}`}>expand_circle_down</span>
                 </button>
                 
                 {expandedDays.has(day) && (
-                  <div className="p-3 space-y-4 bg-slate-50/30">
+                  <div className="p-6 space-y-6 bg-slate-50/50">
                     {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map(task => {
-                      // Ocultar subitem 'Palavra' na aba Ociosidade para os dias EBD e SEG
-                      const skipPalavraInAvailability = task === 'Palavra' && (day === 'EBD' || day === 'SEG');
-                      if (skipPalavraInAvailability) return null;
+                      if (task === 'Palavra' && (day === 'EBD' || day === 'SEG')) return null;
 
                       const taskKey = `${day}-${task}`;
                       const isExpanded = expandedTasks.has(taskKey);
 
                       return (
-                        <div key={task} className="border-b border-slate-100 last:border-0 pb-2">
+                        <div key={task} className="border-b border-slate-200 last:border-0 pb-4 last:pb-0">
                           <button 
                             onClick={() => toggleTask(day, task)}
-                            className="w-full flex items-center justify-between py-1"
+                            className="w-full flex items-center justify-between py-2"
                           >
-                            <span className="text-indigo-900 font-black text-[11px] uppercase tracking-wider">{task}</span>
-                            <span className={`material-icons text-indigo-300 text-sm transition-transform ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>keyboard_arrow_down</span>
+                            <span className="text-indigo-900 font-black text-base uppercase tracking-widest">{task}</span>
+                            <span className={`material-icons text-indigo-200 text-xl transition-transform ${isExpanded ? 'rotate-180' : ''}`}>stat_minus_1</span>
                           </button>
                           
                           {isExpanded && (
-                            <div className="space-y-1.5 mt-2">
-                              {availabilityData[day][task].map((w) => (
-                                <div key={w.name} className="flex justify-between items-center p-2.5 bg-white rounded-xl border border-slate-100 shadow-xs">
-                                  <div className="flex flex-col">
-                                    <span className="font-black text-xs text-slate-800">{w.name}</span>
-                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                                      {w.lastDate ? `Em: ${w.lastDate.toLocaleDateString('pt-BR')}` : 'Sem registro neste dia'}
-                                    </span>
+                            <div className="space-y-2 mt-4 animate-in slide-in-from-top-2">
+                              {availabilityData[day][task].map((w) => {
+                                const isUrgent = w.daysSince > 21 || w.daysSince === Infinity;
+                                return (
+                                  <div key={w.name} className="flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                    <div className="flex flex-col">
+                                      <span className="font-black text-lg text-slate-800">{w.name}</span>
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                        {w.lastDate ? `Visto em: ${w.lastDate.toLocaleDateString('pt-BR')}` : 'Sem registros'}
+                                      </span>
+                                    </div>
+                                    <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${w.daysSince === Infinity ? 'bg-indigo-950 text-white' : isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                                      {w.daysSince === Infinity ? 'Novo' : `${w.daysSince}d`}
+                                    </div>
                                   </div>
-                                  <div className={`px-2 py-1 rounded-md text-[8px] font-black uppercase ${w.daysSince === Infinity ? 'bg-indigo-900 text-white' : 'bg-yellow-400 text-indigo-950'}`}>
-                                    {w.daysSince === Infinity ? 'Inédito' : `${w.daysSince}d`}
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -461,31 +475,36 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'stats' && (
-          <div className="space-y-5 animate-in fade-in duration-300 mb-10">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase px-1 tracking-[0.2em] text-center">Estatísticas Gerais</h2>
-            <div className="grid gap-4">
+          <div className="space-y-8 animate-in fade-in duration-300 pb-10">
+            <h2 className="text-center text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Ranking de Atividades</h2>
+            <div className="grid gap-6">
               {WORKERS.filter(w => w !== 'TRANSMISSÃO' && w !== 'VISITANTE' && w !== 'NÃO HOUVE').map(worker => {
                 const s = workerStats[worker];
                 const total = s.portao + s.louvor + s.palavra;
                 return (
-                  <div key={worker} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="px-5 py-3 bg-indigo-950 text-white flex justify-between items-center">
-                      <span className="font-black text-sm uppercase tracking-tight">{worker}</span>
-                      <span className="text-[9px] font-black bg-yellow-400 text-indigo-950 px-2.5 py-1 rounded-full border border-white/10">{total} ATOS</span>
+                  <div key={worker} className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                    <div className="px-8 py-6 bg-indigo-950 text-white flex justify-between items-center">
+                      <span className="font-black text-xl tracking-tight uppercase">{worker}</span>
+                      <div className="bg-amber-400 text-indigo-950 px-5 py-2 rounded-full font-black text-sm border-2 border-white/20">
+                        {total} ATOS
+                      </div>
                     </div>
-                    <div className="p-3 grid grid-cols-3 gap-2 bg-slate-50/50">
-                      <div className="bg-white p-2 rounded-xl border border-sky-50 flex flex-col items-center">
-                        <span className="text-[7px] font-black text-sky-700 uppercase mb-0.5">Portão</span>
-                        <span className="text-base font-black text-sky-950">{s.portao}</span>
-                      </div>
-                      <div className="bg-white p-2 rounded-xl border border-violet-50 flex flex-col items-center">
-                        <span className="text-[7px] font-black text-violet-700 uppercase mb-0.5">Louvor</span>
-                        <span className="text-base font-black text-violet-950">{s.louvor}</span>
-                      </div>
-                      <div className="bg-white p-2 rounded-xl border border-amber-50 flex flex-col items-center">
-                        <span className="text-[7px] font-black text-amber-800 uppercase mb-0.5">Palavra</span>
-                        <span className="text-base font-black text-amber-950">{s.palavra}</span>
-                      </div>
+                    <div className="p-6 grid grid-cols-3 gap-4 bg-slate-50/30">
+                      {[
+                        { label: 'Portão', value: s.portao, color: 'sky' },
+                        { label: 'Louvor', value: s.louvor, color: 'violet' },
+                        { label: 'Palavra', value: s.palavra, color: 'amber' }
+                      ].map(item => (
+                        <button 
+                          key={item.label} 
+                          onClick={() => showWorkerDetails(worker, item.label as TaskCategory)}
+                          className="bg-white p-4 rounded-3xl border border-slate-100 flex flex-col items-center shadow-sm active:scale-95 transition-all"
+                        >
+                          <span className="text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest">{item.label}</span>
+                          <span className={`text-2xl font-black text-${item.color}-600`}>{item.value}</span>
+                          <span className="material-icons text-[12px] text-slate-300 mt-1">history</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 );
@@ -495,25 +514,27 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'backup' && (
-          <div className="bg-white rounded-3xl shadow-md p-8 space-y-8 animate-in zoom-in-95 duration-300 border border-slate-100">
-            <div className="text-center space-y-3">
-              <div className="inline-block p-5 bg-indigo-50 rounded-2xl mb-1">
-                <span className="material-icons text-4xl text-indigo-400">admin_panel_settings</span>
+          <div className="bg-white rounded-[3rem] shadow-2xl p-10 space-y-12 animate-in zoom-in-95 duration-300 border border-slate-100 mb-10 text-center">
+            <div className="space-y-4">
+              <div className="inline-block p-8 bg-indigo-50 rounded-[2.5rem] mb-2 text-indigo-600 shadow-inner">
+                <span className="material-icons text-6xl">settings_suggest</span>
               </div>
-              <h2 className="text-xl font-black text-indigo-950 uppercase">Sistema</h2>
-              <p className="text-[11px] font-bold text-slate-400 leading-relaxed">Gerencie os dados e realize cópias de segurança.</p>
+              <h2 className="text-3xl font-black text-slate-800 tracking-tighter">AJUSTES</h2>
+              <p className="text-base font-bold text-slate-400 max-w-[240px] mx-auto leading-relaxed">Gerencie a segurança dos seus dados e realize backups periódicos.</p>
             </div>
-            <div className="space-y-3">
-              <button onClick={handleBackup} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-sm flex items-center justify-center gap-3 uppercase tracking-widest shadow-md active:scale-95 transition-all border-b-4 border-black">
-                <span className="material-icons text-xl">file_download</span> Exportar Backup
+            
+            <div className="grid gap-4">
+              <button onClick={() => exportData(reports)} className="w-full bg-indigo-950 text-amber-400 py-6 rounded-full font-black text-xl flex items-center justify-center gap-4 uppercase tracking-widest shadow-2xl hover:scale-105 transition-all">
+                <span className="material-icons text-3xl">cloud_download</span> Exportar Dados
               </button>
-              <label className="w-full bg-indigo-50 text-indigo-900 py-4 rounded-xl font-black text-sm flex items-center justify-center gap-3 border-2 border-indigo-200 cursor-pointer uppercase tracking-widest active:scale-95 transition-all shadow-sm">
-                <span className="material-icons text-xl">file_upload</span> Importar Backup
+              <label className="w-full bg-white text-indigo-900 py-6 rounded-full font-black text-xl flex items-center justify-center gap-4 border-2 border-indigo-100 cursor-pointer uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-md">
+                <span className="material-icons text-3xl">cloud_upload</span> Restaurar Backup
                 <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
               </label>
-              <div className="pt-8 border-t border-slate-100">
-                <button onClick={() => confirm('APAGAR TUDO?') && setReports([])} className="w-full text-rose-600 py-3 text-[10px] font-black uppercase tracking-[0.2em] border border-rose-100 rounded-xl hover:bg-rose-50 transition-all">
-                  Limpar Histórico Local
+              
+              <div className="pt-10 border-t border-slate-100 mt-6">
+                <button onClick={() => confirm('Apagar todo o histórico local?') && setReports([])} className="w-full text-rose-500 py-4 text-sm font-black uppercase tracking-[0.3em] border-2 border-rose-50 rounded-full hover:bg-rose-50 transition-all">
+                  Redefinir Aplicativo
                 </button>
               </div>
             </div>
@@ -521,8 +542,8 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-12 text-center text-slate-300 font-black text-[9px] uppercase tracking-[0.4em] pb-32 px-8 leading-relaxed opacity-40">
-        ICM SANTO ANTÔNIO II<br/>RELATÓRIO DE CULTO
+      <footer className="mt-12 text-center text-slate-300 font-black text-[10px] uppercase tracking-[0.6em] pb-40 px-12 leading-relaxed opacity-50">
+        ICM SANTO ANTÔNIO II • GESTÃO DE OBREIROS
       </footer>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle}>{modalContent}</Modal>
