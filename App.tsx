@@ -21,12 +21,16 @@ const App: React.FC = () => {
   const [expandedDays, setExpandedDays] = useState<Set<DayOfWeek>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
+  // Estados do formulário
   const [date, setDate] = useState(getLocalDateStr(new Date()));
   const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek | ''>('');
   const [portao, setPortao] = useState<WorkerName | ''>('');
   const [louvor, setLouvor] = useState<WorkerName | ''>('');
   const [palavra, setPalavra] = useState<WorkerName | ''>('');
   const [textoBiblico, setTextoBiblico] = useState('');
+  
+  // Estado de controle de edição
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
@@ -34,7 +38,11 @@ const App: React.FC = () => {
 
   // Carregar dados iniciais
   useEffect(() => {
-    setReports(loadReports());
+    const initialReports = loadReports();
+    setReports(initialReports);
+    // Forçar detecção inicial
+    const today = getLocalDateStr(new Date());
+    calculateDayOfWeek(today);
   }, []);
 
   // Salvar sempre que mudar
@@ -42,12 +50,12 @@ const App: React.FC = () => {
     saveReports(reports);
   }, [reports]);
 
-  // Lógica de detecção automática do dia da semana baseada na data
-  useEffect(() => {
-    if (!date) return;
+  // Função isolada para calcular o dia da semana
+  const calculateDayOfWeek = (selectedDateStr: string, currentDayValue: string = '') => {
+    if (!selectedDateStr) return;
     
-    const selectedDate = new Date(date + 'T00:00:00');
-    const dayIndex = selectedDate.getDay(); // 0 = Domingo, 1 = Segunda...
+    const selectedDate = new Date(selectedDateStr + 'T00:00:00');
+    const dayIndex = selectedDate.getDay(); 
 
     const dayMap: Record<number, DayOfWeek> = {
       1: 'SEG',
@@ -58,33 +66,39 @@ const App: React.FC = () => {
     };
 
     if (dayIndex === 0) {
-      // Se for domingo, limpa o dayOfWeek para obrigar a escolha entre EBD e Noite
-      if (dayOfWeek !== 'EBD' && dayOfWeek !== 'DOM') {
+      // Se for domingo e não tiver EBD ou DOM selecionado, limpa
+      if (currentDayValue !== 'EBD' && currentDayValue !== 'DOM') {
         setDayOfWeek('');
       }
     } else {
-      // Para outros dias, define automaticamente se estiver no mapeamento
       const mappedDay = dayMap[dayIndex];
       if (mappedDay) {
         setDayOfWeek(mappedDay);
       } else {
-        setDayOfWeek(''); // Dias sem culto registrado ou não previstos
+        setDayOfWeek('');
       }
     }
+  };
+
+  // Efeito para detecção automática quando a data muda manualmente
+  useEffect(() => {
+    calculateDayOfWeek(date, dayOfWeek);
   }, [date]);
 
-  // Lógica especial para dias específicos (Segunda e Quarta)
+  // Lógica de regras de negócio por dia (Segunda e Quarta)
   useEffect(() => {
     if (dayOfWeek === 'SEG') {
       setPalavra('NÃO HOUVE');
-      if (louvor === 'NÃO HOUVE') setLouvor(''); // Reset louvor se vier da Quarta
+      if (louvor === 'NÃO HOUVE') setLouvor('');
     } else if (dayOfWeek === 'QUA') {
       setPalavra('NÃO HOUVE');
       setLouvor('NÃO HOUVE');
-      setTextoBiblico('CULTO DE SENHORAS');
+      if (!textoBiblico || textoBiblico === 'Não informado' || textoBiblico === '') {
+        setTextoBiblico('CULTO DE SENHORAS');
+      }
     } else {
-      // Reseta se mudar para um dia que geralmente tem escala completa
-      if (palavra === 'NÃO HOUVE' && dayOfWeek !== 'EBD' && dayOfWeek !== 'SEG' && dayOfWeek !== 'QUA') {
+      // Limpeza de estados "NÃO HOUVE" se mudar para dia comum (incluindo EBD agora)
+      if (palavra === 'NÃO HOUVE' && dayOfWeek !== 'SEG' && dayOfWeek !== 'QUA') {
          setPalavra('');
       }
       if (louvor === 'NÃO HOUVE' && dayOfWeek !== 'QUA') {
@@ -111,11 +125,40 @@ const App: React.FC = () => {
     setExpandedTasks(newSet);
   };
 
+  const resetForm = () => {
+    const today = getLocalDateStr(new Date());
+    setEditingReportId(null);
+    setDate(today);
+    setPortao('');
+    setLouvor('');
+    setPalavra('');
+    setTextoBiblico('');
+    // Recalcula o dia para hoje ao invés de apenas limpar
+    calculateDayOfWeek(today);
+  };
+
+  const startEditing = (report: Report) => {
+    setEditingReportId(report.id);
+    setDate(report.date);
+    setDayOfWeek(report.dayOfWeek);
+    setPortao(report.portao);
+    setLouvor(report.louvor);
+    setPalavra(report.palavra);
+    setTextoBiblico(report.textoBiblico);
+    setActiveTab('form');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    resetForm();
+    alert('Edição cancelada.');
+  };
+
   const handleSaveReport = () => {
-    const isSpecialDay = dayOfWeek === 'SEG' || dayOfWeek === 'EBD' || dayOfWeek === 'QUA';
+    // EBD agora exige Palavra no formulário, então removemos da lista de "SpecialDay" (onde Palavra é opcional/NÃO HOUVE)
+    const isSpecialDay = dayOfWeek === 'SEG' || dayOfWeek === 'QUA';
     const isQua = dayOfWeek === 'QUA';
 
-    // Validação baseada no tipo de culto
     if (!date || !dayOfWeek || !portao) {
       alert(`⚠️ Por favor, preencha a data e o obreiro do Portão.`);
       return;
@@ -131,25 +174,33 @@ const App: React.FC = () => {
       return;
     }
 
-    const newReport: Report = {
-      id: crypto.randomUUID(),
-      date,
-      dayOfWeek: dayOfWeek as DayOfWeek,
-      portao: portao as WorkerName,
-      louvor: (louvor || 'NÃO HOUVE') as WorkerName,
-      palavra: (palavra || 'NÃO HOUVE') as WorkerName,
-      textoBiblico: textoBiblico.trim() || 'Não informado',
-      timestamp: Date.now(),
-    };
-
-    setReports(prev => [newReport, ...prev]);
+    if (editingReportId) {
+      setReports(prev => prev.map(r => r.id === editingReportId ? {
+        ...r,
+        date,
+        dayOfWeek: dayOfWeek as DayOfWeek,
+        portao: portao as WorkerName,
+        louvor: (louvor || 'NÃO HOUVE') as WorkerName,
+        palavra: (palavra || 'NÃO HOUVE') as WorkerName,
+        textoBiblico: textoBiblico.trim() || (isQua ? 'CULTO DE SENHORAS' : 'Não informado'),
+      } : r));
+      
+      setEditingReportId(null);
+    } else {
+      const newReport: Report = {
+        id: crypto.randomUUID(),
+        date,
+        dayOfWeek: dayOfWeek as DayOfWeek,
+        portao: portao as WorkerName,
+        louvor: (louvor || 'NÃO HOUVE') as WorkerName,
+        palavra: (palavra || 'NÃO HOUVE') as WorkerName,
+        textoBiblico: textoBiblico.trim() || (isQua ? 'CULTO DE SENHORAS' : 'Não informado'),
+        timestamp: Date.now(),
+      };
+      setReports(prev => [newReport, ...prev]);
+    }
     
-    // Reset campos
-    setPortao('');
-    setLouvor('');
-    setPalavra('');
-    setTextoBiblico('');
-    
+    resetForm();
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
@@ -169,7 +220,7 @@ const App: React.FC = () => {
 
   const handleShareWhatsApp = (report: Report) => {
     const formattedDate = new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR');
-    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n📅 *Data:* ${formattedDate}\n🚪 *Portão:* ${report.portao}\n${report.louvor !== 'NÃO HOUVE' ? `🎤 *Louvor:* ${report.louvor}\n` : ''}${report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : ''}${report.dayOfWeek !== 'QUA' ? `📜 *Texto:* ${report.textoBiblico}` : '*CULTO DE SENHORAS*'}`;
+    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n📅 *Data:* ${formattedDate}\n🚪 *Portão:* ${report.portao}\n${report.louvor !== 'NÃO HOUVE' ? `🎤 *Louvor:* ${report.louvor}\n` : ''}${report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : ''}${report.dayOfWeek !== 'QUA' ? `📜 *Texto:* ${report.textoBiblico}` : '*🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS*'}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -192,7 +243,7 @@ const App: React.FC = () => {
                 monthReports.forEach(r => {
                   const day = r.date.split('-')[2];
                   text += `📅 *Dia ${day} (${r.dayOfWeek}):*\n`;
-                  text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
+                  text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
                 });
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                 setModalOpen(false);
@@ -217,7 +268,7 @@ const App: React.FC = () => {
     sortedReports.forEach(r => {
       const formattedDate = new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR');
       text += `📅 *${formattedDate} (${r.dayOfWeek}):*\n`;
-      text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
+      text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
     });
 
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -292,7 +343,7 @@ const App: React.FC = () => {
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10">
           <div className="bg-indigo-950 text-amber-400 px-8 py-4 rounded-full shadow-2xl border border-white/10 flex items-center gap-3">
             <span className="material-icons text-2xl">verified</span>
-            <span className="font-bold text-lg uppercase tracking-tight">Registro Salvo</span>
+            <span className="font-bold text-lg uppercase tracking-tight">{editingReportId ? 'Relatório Atualizado' : 'Registro Salvo'}</span>
           </div>
         </div>
       )}
@@ -326,7 +377,7 @@ const App: React.FC = () => {
       <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-50">
         <div className="bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_20px_50px_rgba(30,27,75,0.15)] border border-slate-200 p-2 flex items-center justify-between">
           {[
-            { id: 'form', icon: 'add_circle', label: 'Novo' },
+            { id: 'form', icon: 'add_circle', label: editingReportId ? 'Editando' : 'Novo' },
             { id: 'history', icon: 'list_alt', label: 'Histórico' },
             { id: 'availability', icon: 'hourglass_empty', label: 'Ociosidade' },
             { id: 'stats', icon: 'analytics', label: 'Ranking' },
@@ -350,7 +401,13 @@ const App: React.FC = () => {
 
       <main className="max-w-2xl mx-auto px-5 -mt-8">
         {activeTab === 'form' && (
-          <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 border border-slate-100 animate-in fade-in slide-in-from-bottom-5 duration-500 space-y-8">
+          <div className={`bg-white rounded-[2.5rem] shadow-2xl p-8 border ${editingReportId ? 'border-amber-400 border-4 animate-pulse' : 'border-slate-100'} animate-in fade-in slide-in-from-bottom-5 duration-500 space-y-8`}>
+            {editingReportId && (
+              <div className="bg-amber-100 text-amber-900 p-4 rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-xs tracking-widest">
+                <span className="material-icons">edit</span> Editando Registro Existente
+              </div>
+            )}
+            
             {/* Data e Detecção de Dia */}
             <div className="space-y-4">
               <label className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] block text-center">Data do Culto</label>
@@ -392,9 +449,9 @@ const App: React.FC = () => {
             {/* Escala */}
             <div className="space-y-6">
               {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map((cat) => {
-                // Lógica dinâmica de visibilidade conforme o dia
-                if (dayOfWeek === 'QUA' && cat !== 'Portão') return null; // Quarta é só portão
-                if (cat === 'Palavra' && (dayOfWeek === 'SEG' || dayOfWeek === 'EBD')) return null; // Segunda e EBD sem palavra
+                if (dayOfWeek === 'QUA' && cat !== 'Portão') return null; 
+                // EBD AGORA MOSTRA PALAVRA (conforme solicitado), apenas Segunda mantém oculto
+                if (cat === 'Palavra' && dayOfWeek === 'SEG') return null;
 
                 const val = cat === 'Portão' ? portao : cat === 'Louvor' ? louvor : palavra;
                 const set = cat === 'Portão' ? setPortao : cat === 'Louvor' ? setLouvor : setPalavra;
@@ -427,7 +484,7 @@ const App: React.FC = () => {
               )}
               {dayOfWeek === 'QUA' && (
                 <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-indigo-800 text-[11px] font-bold text-center italic uppercase tracking-tight">
-                  CULTO DIRIGIDO PELO GRUPO DE SENHORAS
+                  🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS
                 </div>
               )}
             </div>
@@ -447,9 +504,24 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <button onClick={handleSaveReport} className="w-full bg-indigo-950 text-amber-400 py-6 rounded-full font-black uppercase text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3 border-b-4 border-amber-600/30 mt-4">
-              <span className="material-icons text-3xl">save_as</span> Confirmar Culto
-            </button>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={handleSaveReport} 
+                className={`w-full ${editingReportId ? 'bg-amber-500 border-amber-600 text-white' : 'bg-indigo-950 border-amber-600/30 text-amber-400'} py-6 rounded-full font-black uppercase text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3 border-b-4 mt-4`}
+              >
+                <span className="material-icons text-3xl">{editingReportId ? 'update' : 'save_as'}</span> 
+                {editingReportId ? 'Atualizar Culto' : 'Confirmar Culto'}
+              </button>
+              
+              {editingReportId && (
+                <button 
+                  onClick={cancelEdit} 
+                  className="w-full bg-slate-100 text-slate-500 py-4 rounded-full font-black uppercase text-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-icons">cancel</span> Cancelar Edição
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -500,8 +572,9 @@ const App: React.FC = () => {
                       <h3 className="text-2xl font-black text-slate-800">{new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR')}</h3>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => handleShareWhatsApp(report)} className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all"><span className="material-icons text-2xl">share</span></button>
-                      <button onClick={() => confirm('Apagar permanentemente?') && setReports(prev => prev.filter(r => r.id !== report.id))} className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><span className="material-icons text-2xl">delete_outline</span></button>
+                      <button onClick={() => startEditing(report)} className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all"><span className="material-icons text-xl">edit</span></button>
+                      <button onClick={() => handleShareWhatsApp(report)} className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all"><span className="material-icons text-xl">share</span></button>
+                      <button onClick={() => confirm('Apagar permanentemente?') && setReports(prev => prev.filter(r => r.id !== report.id))} className="w-12 h-12 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><span className="material-icons text-xl">delete_outline</span></button>
                     </div>
                   </div>
                   <div className="grid gap-4 bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100">
@@ -551,6 +624,7 @@ const App: React.FC = () => {
                 {expandedDays.has(day) && (
                   <div className="p-6 space-y-6 bg-slate-50/50">
                     {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map(task => {
+                      // MANTÉM OCULTO NA OCIOSIDADE: Palavra em EBD, SEG e QUA (conforme solicitado)
                       if (task === 'Palavra' && (day === 'EBD' || day === 'SEG' || day === 'QUA')) return null;
                       if (task === 'Louvor' && day === 'QUA') return null;
 
