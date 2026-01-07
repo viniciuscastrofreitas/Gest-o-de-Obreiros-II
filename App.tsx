@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { WORKERS, DAYS_OF_WEEK } from './constants';
 import { Report, WorkerName, DayOfWeek, TaskCategory, AppTab } from './types';
-import { loadReports, saveReports, exportData, importData } from './utils/storage';
+import { loadReports, saveReports, exportData, importData, shareBackupData } from './utils/storage';
 import Modal from './components/Modal';
 
 const App: React.FC = () => {
@@ -84,23 +85,27 @@ const App: React.FC = () => {
 
   // Lógica de regras de negócio por dia (Segunda e Quarta)
   useEffect(() => {
-    if (dayOfWeek === 'SEG') {
+    // Fix: Using a type assertion (as string) to prevent the TypeScript compiler from incorrectly narrowing
+    // the dayOfWeek state and causing "no overlap" comparison errors with 'SEG' and 'QUA'.
+    const currentDay = dayOfWeek as string;
+
+    if (currentDay === 'SEG') {
       setPalavra('NÃO HOUVE');
       if (louvor === 'NÃO HOUVE') setLouvor('');
-    } else if (dayOfWeek === 'QUA') {
+    } else if (currentDay === 'QUA') {
       setPalavra('NÃO HOUVE');
       setLouvor('NÃO HOUVE');
       if (!textoBiblico || textoBiblico === 'Não informado' || textoBiblico === '') {
         setTextoBiblico('CULTO DE SENHORAS');
       }
     } else {
-      if (palavra === 'NÃO HOUVE' && dayOfWeek !== 'SEG' && dayOfWeek !== 'QUA') {
+      if (palavra === 'NÃO HOUVE' && currentDay !== 'SEG' && currentDay !== 'QUA') {
          setPalavra('');
       }
-      if (louvor === 'NÃO HOUVE' && dayOfWeek !== 'QUA') {
+      if (louvor === 'NÃO HOUVE' && currentDay !== 'QUA') {
         setLouvor('');
       }
-      if (textoBiblico === 'CULTO DE SENHORAS' && dayOfWeek !== 'QUA') {
+      if (textoBiblico === 'CULTO DE SENHORAS' && currentDay !== 'QUA') {
         setTextoBiblico('');
       }
     }
@@ -682,11 +687,22 @@ const App: React.FC = () => {
             </div>
             
             <div className="grid gap-3">
-              <button onClick={() => exportData(reports)} className="w-full bg-indigo-950 text-amber-400 py-4 rounded-full font-black text-base flex items-center justify-center gap-3 uppercase tracking-widest shadow-lg">
-                <span className="material-icons text-2xl">cloud_download</span> Exportar
+              <button 
+                onClick={() => shareBackupData(reports)} 
+                className="w-full bg-emerald-600 text-white py-4 rounded-full font-black text-base flex items-center justify-center gap-3 uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+              >
+                <span className="material-icons text-2xl">share</span> Compartilhar (WhatsApp)
               </button>
-              <label className="w-full bg-white text-indigo-900 py-4 rounded-full font-black text-base flex items-center justify-center gap-3 border-2 border-indigo-50 cursor-pointer uppercase tracking-widest shadow-sm">
-                <span className="material-icons text-2xl">cloud_upload</span> Restaurar
+              
+              <button 
+                onClick={() => exportData(reports)} 
+                className="w-full bg-indigo-950 text-amber-400 py-4 rounded-full font-black text-base flex items-center justify-center gap-3 uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+              >
+                <span className="material-icons text-2xl">cloud_download</span> Baixar JSON
+              </button>
+              
+              <label className="w-full bg-white text-indigo-900 py-4 rounded-full font-black text-base flex items-center justify-center gap-3 border-2 border-indigo-50 cursor-pointer uppercase tracking-widest shadow-sm active:scale-95 transition-all">
+                <span className="material-icons text-2xl">cloud_upload</span> Restaurar Backup
                 <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
               </label>
               
