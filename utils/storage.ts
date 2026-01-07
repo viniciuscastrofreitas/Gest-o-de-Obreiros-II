@@ -21,28 +21,6 @@ export const exportData = (reports: Report[]) => {
   linkElement.click();
 };
 
-export const shareBackupData = async (reports: Report[]) => {
-  const dataStr = JSON.stringify(reports, null, 2);
-  const fileName = `backup_icm_${new Date().toISOString().split('T')[0]}.json`;
-  const file = new File([dataStr], fileName, { type: 'application/json' });
-
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: 'Backup Relatórios ICM',
-        text: 'Segue o arquivo de backup dos relatórios de culto para restauração.',
-      });
-    } catch (err) {
-      if ((err as any).name !== 'AbortError') {
-        alert('Erro ao compartilhar o arquivo.');
-      }
-    }
-  } else {
-    alert('Seu navegador ou dispositivo não suporta o compartilhamento direto de arquivos. Utilize a opção "Exportar" para baixar o arquivo manualmente.');
-  }
-};
-
 export const importData = (file: File): Promise<Report[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

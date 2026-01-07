@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { WORKERS, DAYS_OF_WEEK } from './constants';
 import { Report, WorkerName, DayOfWeek, TaskCategory, AppTab } from './types';
-import { loadReports, saveReports, exportData, importData, shareBackupData } from './utils/storage';
+import { loadReports, saveReports, exportData, importData } from './utils/storage';
 import Modal from './components/Modal';
 
 const App: React.FC = () => {
@@ -85,8 +84,6 @@ const App: React.FC = () => {
 
   // Lógica de regras de negócio por dia (Segunda e Quarta)
   useEffect(() => {
-    // Fix: Using a type assertion (as string) to prevent the TypeScript compiler from incorrectly narrowing
-    // the dayOfWeek state and causing "no overlap" comparison errors with 'SEG' and 'QUA'.
     const currentDay = dayOfWeek as string;
 
     if (currentDay === 'SEG') {
@@ -621,7 +618,7 @@ const App: React.FC = () => {
                                         {w.lastDate ? `Última em: ${w.lastDate.toLocaleDateString('pt-BR')}` : 'Sem registros'}
                                       </span>
                                     </div>
-                                    <div className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase ${w.daysSince === Infinity ? 'bg-indigo-900 text-white' : isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    <div className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase ${w.daysSince === Infinity ? 'bg-indigo-950 text-white' : isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}>
                                       {w.daysSince === Infinity ? '-' : `${w.daysSince}d`}
                                     </div>
                                   </div>
@@ -688,17 +685,10 @@ const App: React.FC = () => {
             
             <div className="grid gap-3">
               <button 
-                onClick={() => shareBackupData(reports)} 
-                className="w-full bg-emerald-600 text-white py-4 rounded-full font-black text-base flex items-center justify-center gap-3 uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-              >
-                <span className="material-icons text-2xl">share</span> Compartilhar (WhatsApp)
-              </button>
-              
-              <button 
                 onClick={() => exportData(reports)} 
                 className="w-full bg-indigo-950 text-amber-400 py-4 rounded-full font-black text-base flex items-center justify-center gap-3 uppercase tracking-widest shadow-lg active:scale-95 transition-all"
               >
-                <span className="material-icons text-2xl">cloud_download</span> Baixar JSON
+                <span className="material-icons text-2xl">cloud_download</span> Exportar JSON
               </button>
               
               <label className="w-full bg-white text-indigo-900 py-4 rounded-full font-black text-base flex items-center justify-center gap-3 border-2 border-indigo-50 cursor-pointer uppercase tracking-widest shadow-sm active:scale-95 transition-all">
