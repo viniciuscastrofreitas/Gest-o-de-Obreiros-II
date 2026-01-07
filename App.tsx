@@ -17,7 +17,6 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('form');
   const [showToast, setShowToast] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const [expandedDays, setExpandedDays] = useState<Set<DayOfWeek>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -33,24 +32,69 @@ const App: React.FC = () => {
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState<React.ReactNode>(null);
 
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
+  // Carregar dados iniciais
   useEffect(() => {
     setReports(loadReports());
   }, []);
 
+  // Salvar sempre que mudar
   useEffect(() => {
     saveReports(reports);
   }, [reports]);
+
+  // Lógica de detecção automática do dia da semana baseada na data
+  useEffect(() => {
+    if (!date) return;
+    
+    const selectedDate = new Date(date + 'T00:00:00');
+    const dayIndex = selectedDate.getDay(); // 0 = Domingo, 1 = Segunda...
+
+    const dayMap: Record<number, DayOfWeek> = {
+      1: 'SEG',
+      2: 'TER',
+      3: 'QUA',
+      4: 'QUI',
+      6: 'SAB'
+    };
+
+    if (dayIndex === 0) {
+      // Se for domingo, limpa o dayOfWeek para obrigar a escolha entre EBD e Noite
+      if (dayOfWeek !== 'EBD' && dayOfWeek !== 'DOM') {
+        setDayOfWeek('');
+      }
+    } else {
+      // Para outros dias, define automaticamente se estiver no mapeamento
+      const mappedDay = dayMap[dayIndex];
+      if (mappedDay) {
+        setDayOfWeek(mappedDay);
+      } else {
+        setDayOfWeek(''); // Dias sem culto registrado ou não previstos
+      }
+    }
+  }, [date]);
+
+  // Lógica especial para dias específicos (Segunda e Quarta)
+  useEffect(() => {
+    if (dayOfWeek === 'SEG') {
+      setPalavra('NÃO HOUVE');
+      if (louvor === 'NÃO HOUVE') setLouvor(''); // Reset louvor se vier da Quarta
+    } else if (dayOfWeek === 'QUA') {
+      setPalavra('NÃO HOUVE');
+      setLouvor('NÃO HOUVE');
+      setTextoBiblico('CULTO DE SENHORAS');
+    } else {
+      // Reseta se mudar para um dia que geralmente tem escala completa
+      if (palavra === 'NÃO HOUVE' && dayOfWeek !== 'EBD' && dayOfWeek !== 'SEG' && dayOfWeek !== 'QUA') {
+         setPalavra('');
+      }
+      if (louvor === 'NÃO HOUVE' && dayOfWeek !== 'QUA') {
+        setLouvor('');
+      }
+      if (textoBiblico === 'CULTO DE SENHORAS' && dayOfWeek !== 'QUA') {
+        setTextoBiblico('');
+      }
+    }
+  }, [dayOfWeek]);
 
   const toggleDay = (day: DayOfWeek) => {
     const newSet = new Set(expandedDays);
@@ -68,9 +112,22 @@ const App: React.FC = () => {
   };
 
   const handleSaveReport = () => {
-    const isOptionalDay = dayOfWeek === 'SEG' || dayOfWeek === 'EBD';
-    if (!date || !dayOfWeek || !portao || !louvor || (!isOptionalDay && !palavra)) {
-      alert(`⚠️ Por favor, preencha todos os campos obrigatórios.`);
+    const isSpecialDay = dayOfWeek === 'SEG' || dayOfWeek === 'EBD' || dayOfWeek === 'QUA';
+    const isQua = dayOfWeek === 'QUA';
+
+    // Validação baseada no tipo de culto
+    if (!date || !dayOfWeek || !portao) {
+      alert(`⚠️ Por favor, preencha a data e o obreiro do Portão.`);
+      return;
+    }
+
+    if (!isQua && !louvor) {
+      alert(`⚠️ Por favor, selecione o obreiro do Louvor.`);
+      return;
+    }
+
+    if (!isSpecialDay && !palavra) {
+      alert(`⚠️ Por favor, selecione o obreiro da Palavra.`);
       return;
     }
 
@@ -79,15 +136,15 @@ const App: React.FC = () => {
       date,
       dayOfWeek: dayOfWeek as DayOfWeek,
       portao: portao as WorkerName,
-      louvor: louvor as WorkerName,
+      louvor: (louvor || 'NÃO HOUVE') as WorkerName,
       palavra: (palavra || 'NÃO HOUVE') as WorkerName,
       textoBiblico: textoBiblico.trim() || 'Não informado',
       timestamp: Date.now(),
     };
 
     setReports(prev => [newReport, ...prev]);
-    setDate(getLocalDateStr(new Date()));
-    setDayOfWeek('');
+    
+    // Reset campos
     setPortao('');
     setLouvor('');
     setPalavra('');
@@ -112,7 +169,7 @@ const App: React.FC = () => {
 
   const handleShareWhatsApp = (report: Report) => {
     const formattedDate = new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR');
-    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n📅 *Data:* ${formattedDate}\n🚪 *Portão:* ${report.portao}\n🎤 *Louvor:* ${report.louvor}\n${report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : ''}📜 *Texto:* ${report.textoBiblico}`;
+    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n📅 *Data:* ${formattedDate}\n🚪 *Portão:* ${report.portao}\n${report.louvor !== 'NÃO HOUVE' ? `🎤 *Louvor:* ${report.louvor}\n` : ''}${report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : ''}${report.dayOfWeek !== 'QUA' ? `📜 *Texto:* ${report.textoBiblico}` : '*CULTO DE SENHORAS*'}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -135,7 +192,7 @@ const App: React.FC = () => {
                 monthReports.forEach(r => {
                   const day = r.date.split('-')[2];
                   text += `📅 *Dia ${day} (${r.dayOfWeek}):*\n`;
-                  text += `🚪 ${r.portao} | 🎤 ${r.louvor}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n📜 ${r.textoBiblico}\n\n`;
+                  text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
                 });
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                 setModalOpen(false);
@@ -149,6 +206,21 @@ const App: React.FC = () => {
       </div>
     );
     setModalOpen(true);
+  };
+
+  const handleShareAll = () => {
+    if (reports.length === 0) return alert('Sem dados para compartilhar.');
+    
+    let text = `*HISTÓRICO COMPLETO - ICM SANTO ANTÔNIO II*\n\n`;
+    const sortedReports = [...reports].sort((a, b) => b.timestamp - a.timestamp);
+
+    sortedReports.forEach(r => {
+      const formattedDate = new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR');
+      text += `📅 *${formattedDate} (${r.dayOfWeek}):*\n`;
+      text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
+    });
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const showWorkerDetails = (worker: WorkerName, task: TaskCategory) => {
@@ -211,6 +283,8 @@ const App: React.FC = () => {
     return stats;
   }, [reports]);
 
+  const isSunday = new Date(date + 'T00:00:00').getDay() === 0;
+
   return (
     <div className="min-h-screen bg-[#f8fafc] pb-40 font-sans text-slate-800">
       {/* Toast Notificação */}
@@ -248,7 +322,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Navegação Estilo Pílula Clássica */}
+      {/* Navegação Estilo Pílula */}
       <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-50">
         <div className="bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_20px_50px_rgba(30,27,75,0.15)] border border-slate-200 p-2 flex items-center justify-between">
           {[
@@ -274,10 +348,10 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Área de Conteúdo */}
       <main className="max-w-2xl mx-auto px-5 -mt-8">
         {activeTab === 'form' && (
           <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 border border-slate-100 animate-in fade-in slide-in-from-bottom-5 duration-500 space-y-8">
+            {/* Data e Detecção de Dia */}
             <div className="space-y-4">
               <label className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] block text-center">Data do Culto</label>
               <input
@@ -286,30 +360,49 @@ const App: React.FC = () => {
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black text-xl outline-none focus:border-indigo-600 transition-all text-center text-indigo-950 shadow-inner"
               />
-              <div className="grid grid-cols-6 gap-2">
-                {DAYS_OF_WEEK.map(day => (
-                  <button 
-                    key={day} 
-                    onClick={() => setDayOfWeek(day)} 
-                    className={`py-4 rounded-2xl font-black text-xs transition-all border-2 ${dayOfWeek === day ? 'bg-indigo-950 text-amber-400 border-indigo-950 shadow-md' : 'bg-white text-slate-400 border-slate-100'}`}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
+              
+              {/* Se for domingo, pergunta se é EBD ou Noite */}
+              {isSunday ? (
+                <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block text-center italic">Domingo detectado. Qual o culto?</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => setDayOfWeek('EBD')}
+                      className={`py-5 rounded-2xl font-black text-sm uppercase transition-all border-2 ${dayOfWeek === 'EBD' ? 'bg-indigo-950 text-amber-400 border-indigo-950 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}
+                    >
+                      Manhã (EBD)
+                    </button>
+                    <button 
+                      onClick={() => setDayOfWeek('DOM')}
+                      className={`py-5 rounded-2xl font-black text-sm uppercase transition-all border-2 ${dayOfWeek === 'DOM' ? 'bg-indigo-950 text-amber-400 border-indigo-950 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}
+                    >
+                      Noite (Culto)
+                    </button>
+                  </div>
+                </div>
+              ) : dayOfWeek && (
+                <div className="text-center py-2 animate-in slide-in-from-top-2">
+                  <span className="bg-indigo-50 text-indigo-700 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest border border-indigo-100">
+                    Dia Detectado: {dayOfWeek}
+                  </span>
+                </div>
+              )}
             </div>
 
+            {/* Escala */}
             <div className="space-y-6">
               {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map((cat) => {
-                const isOptional = cat === 'Palavra' && (dayOfWeek === 'EBD' || dayOfWeek === 'SEG');
+                // Lógica dinâmica de visibilidade conforme o dia
+                if (dayOfWeek === 'QUA' && cat !== 'Portão') return null; // Quarta é só portão
+                if (cat === 'Palavra' && (dayOfWeek === 'SEG' || dayOfWeek === 'EBD')) return null; // Segunda e EBD sem palavra
+
                 const val = cat === 'Portão' ? portao : cat === 'Louvor' ? louvor : palavra;
                 const set = cat === 'Portão' ? setPortao : cat === 'Louvor' ? setLouvor : setPalavra;
 
                 return (
-                  <div key={cat} className="space-y-3">
+                  <div key={cat} className="space-y-3 animate-in fade-in duration-300">
                     <div className="flex justify-between items-center px-2">
                       <label className="text-base font-black text-slate-500 uppercase tracking-widest">{cat}</label>
-                      {isOptional && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase italic">Opcional</span>}
                     </div>
                     <div className="relative">
                       <select 
@@ -325,17 +418,34 @@ const App: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Mensagens Informativas */}
+              {dayOfWeek === 'SEG' && (
+                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-amber-800 text-[11px] font-bold text-center italic uppercase tracking-tight">
+                  Segunda-feira: Não há escala de Palavra.
+                </div>
+              )}
+              {dayOfWeek === 'QUA' && (
+                <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-indigo-800 text-[11px] font-bold text-center italic uppercase tracking-tight">
+                  CULTO DIRIGIDO PELO GRUPO DE SENHORAS
+                </div>
+              )}
             </div>
 
-            <div className="space-y-3">
-              <label className="text-base font-black text-slate-500 uppercase tracking-widest px-2">Texto Bíblico / Mensagem</label>
-              <textarea 
-                value={textoBiblico}
-                onChange={(e) => setTextoBiblico(e.target.value)}
-                placeholder="Referência ou título da mensagem..."
-                className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-lg outline-none h-32 resize-none focus:bg-white focus:border-indigo-600 transition-all text-slate-700 shadow-sm"
-              />
-            </div>
+            {/* Texto Bíblico (Oculto na Quarta) */}
+            {dayOfWeek !== 'QUA' && (
+              <div className="space-y-3">
+                <label className="text-base font-black text-slate-500 uppercase tracking-widest px-2">
+                  {dayOfWeek === 'SEG' ? 'Texto Bíblico / Leitura' : 'Texto Bíblico / Mensagem'}
+                </label>
+                <textarea 
+                  value={textoBiblico}
+                  onChange={(e) => setTextoBiblico(e.target.value)}
+                  placeholder="Referência ou título da mensagem..."
+                  className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-lg outline-none h-32 resize-none focus:bg-white focus:border-indigo-600 transition-all text-slate-700 shadow-sm"
+                />
+              </div>
+            )}
 
             <button onClick={handleSaveReport} className="w-full bg-indigo-950 text-amber-400 py-6 rounded-full font-black uppercase text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3 border-b-4 border-amber-600/30 mt-4">
               <span className="material-icons text-3xl">save_as</span> Confirmar Culto
@@ -343,6 +453,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Histórico */}
         {activeTab === 'history' && (
           <div className="space-y-6 animate-in fade-in duration-300 pb-10">
             <div className="flex gap-3">
@@ -356,12 +467,22 @@ const App: React.FC = () => {
                   className="w-full py-4 bg-transparent outline-none font-bold text-lg text-slate-600"
                 />
               </div>
-              <button 
-                onClick={handleShareMonth}
-                className="bg-indigo-950 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all"
-              >
-                <span className="material-icons text-3xl">ios_share</span>
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleShareMonth}
+                  title="Relatório Mensal"
+                  className="bg-indigo-950 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all"
+                >
+                  <span className="material-icons text-2xl">calendar_month</span>
+                </button>
+                <button 
+                  onClick={handleShareAll}
+                  title="Relatório Completo"
+                  className="bg-amber-500 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all"
+                >
+                  <span className="material-icons text-2xl">auto_stories</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-6">
@@ -388,10 +509,12 @@ const App: React.FC = () => {
                       <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">door_front</span></div>
                       <span className="text-lg font-black text-slate-700">{report.portao}</span>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">lyrics</span></div>
-                      <span className="text-lg font-black text-slate-700">{report.louvor}</span>
-                    </div>
+                    {report.louvor !== 'NÃO HOUVE' && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">lyrics</span></div>
+                        <span className="text-lg font-black text-slate-700">{report.louvor}</span>
+                      </div>
+                    )}
                     {report.palavra !== 'NÃO HOUVE' && (
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center shadow-sm"><span className="material-icons text-xl">menu_book</span></div>
@@ -400,7 +523,7 @@ const App: React.FC = () => {
                     )}
                   </div>
                   <div className="mt-6 px-2 text-lg italic text-slate-500 font-medium border-l-4 border-slate-200 pl-4">
-                    "{report.textoBiblico}"
+                    {report.dayOfWeek === 'QUA' ? '🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `"${report.textoBiblico}"`}
                   </div>
                 </div>
               ))}
@@ -408,6 +531,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Aba Ociosidade */}
         {activeTab === 'availability' && (
           <div className="space-y-6 animate-in fade-in duration-300 pb-10">
             <h2 className="text-[11px] font-black text-slate-400 uppercase text-center tracking-[0.5em] mb-8">Controle de Ociosidade</h2>
@@ -427,7 +551,8 @@ const App: React.FC = () => {
                 {expandedDays.has(day) && (
                   <div className="p-6 space-y-6 bg-slate-50/50">
                     {(['Portão', 'Louvor', 'Palavra'] as TaskCategory[]).map(task => {
-                      if (task === 'Palavra' && (day === 'EBD' || day === 'SEG')) return null;
+                      if (task === 'Palavra' && (day === 'EBD' || day === 'SEG' || day === 'QUA')) return null;
+                      if (task === 'Louvor' && day === 'QUA') return null;
 
                       const taskKey = `${day}-${task}`;
                       const isExpanded = expandedTasks.has(taskKey);
@@ -472,6 +597,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Estatísticas */}
         {activeTab === 'stats' && (
           <div className="space-y-8 animate-in fade-in duration-300 pb-10">
             <h2 className="text-center text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Ranking de Atividades</h2>
@@ -511,6 +637,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Ajustes e Backup */}
         {activeTab === 'backup' && (
           <div className="bg-white rounded-[3rem] shadow-2xl p-10 space-y-12 animate-in zoom-in-95 duration-300 border border-slate-100 mb-10 text-center">
             <div className="space-y-4">

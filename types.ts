@@ -6,7 +6,7 @@ export type WorkerName =
   | 'VALDEMIRO' | 'VINICIUS' | 'VISITANTE'
   | 'NÃO HOUVE';
 
-export type DayOfWeek = 'EBD' | 'DOM' | 'SEG' | 'TER' | 'QUI' | 'SAB';
+export type DayOfWeek = 'EBD' | 'DOM' | 'SEG' | 'TER' | 'QUA' | 'QUI' | 'SAB';
 
 export type TaskCategory = 'Portão' | 'Louvor' | 'Palavra';
 

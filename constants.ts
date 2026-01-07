@@ -1,3 +1,4 @@
+
 import { WorkerName, DayOfWeek } from './types';
 
 export const WORKERS: WorkerName[] = [
@@ -17,6 +18,6 @@ export const WORKERS: WorkerName[] = [
   'VISITANTE'
 ];
 
-export const DAYS_OF_WEEK: DayOfWeek[] = ['EBD', 'DOM', 'SEG', 'TER', 'QUI', 'SAB'];
+export const DAYS_OF_WEEK: DayOfWeek[] = ['EBD', 'DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SAB'];
 
 export const STORAGE_KEY = 'church_reports_v1';
