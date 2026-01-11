@@ -1,6 +1,6 @@
 
 export type WorkerName = 
-  | 'BENEDITO' | 'CLÁUDIO' | 'DAVID' | 'ETIEL' | 'FÁBIO'
+  | 'BENEDITO' | 'CLÁUDIO' | 'DAVID' | 'ITIEL' | 'FÁBIO'
   | 'LUIZ BORGES' | 'LUIZ CORREA' | 'MANOEL' 
   | 'REGINALDO' | 'ROBERTO' | 'TRANSMISSÃO' 
   | 'VALDEMIRO' | 'VINICIUS' | 'VISITANTE'

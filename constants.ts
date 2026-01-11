@@ -5,7 +5,7 @@ export const WORKERS: WorkerName[] = [
   'BENEDITO', 
   'CLÁUDIO', 
   'DAVID', 
-  'ETIEL', 
+  'ITIEL', 
   'FÁBIO',
   'LUIZ BORGES', 
   'LUIZ CORREA', 
