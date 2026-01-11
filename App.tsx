@@ -35,6 +35,25 @@ const App: React.FC = () => {
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState<React.ReactNode>(null);
 
+  // Mapeamento de prioridade para ordenar EBD e DOM no mesmo dia
+  const DAY_PRIORITY: Record<string, number> = {
+    'DOM': 2, // Noite (Mais recente)
+    'EBD': 1  // Manhã (Mais antigo)
+  };
+
+  // Função centralizada de ordenação: Data desc -> Turno desc -> Timestamp desc
+  const sortReports = (a: Report, b: Report) => {
+    const dateCompare = b.date.localeCompare(a.date);
+    if (dateCompare !== 0) return dateCompare;
+
+    const priorityA = DAY_PRIORITY[a.dayOfWeek] || 0;
+    const priorityB = DAY_PRIORITY[b.dayOfWeek] || 0;
+    const priorityCompare = priorityB - priorityA;
+    if (priorityCompare !== 0) return priorityCompare;
+
+    return b.timestamp - a.timestamp;
+  };
+
   // Carregar dados iniciais
   useEffect(() => {
     const initialReports = loadReports();
@@ -215,7 +234,7 @@ const App: React.FC = () => {
 
   const handleShareWhatsApp = (report: Report) => {
     const formattedDate = new Date(report.date + 'T00:00:00').toLocaleDateString('pt-BR');
-    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n📅 *Data:* ${formattedDate}\n🚪 *Portão:* ${report.portao}\n${report.louvor !== 'NÃO HOUVE' ? `🎤 *Louvor:* ${report.louvor}\n` : ''}${report.palavra !== 'NÃO HOUVE' ? `📖 *Palavra:* ${report.palavra}\n` : ''}${report.dayOfWeek !== 'QUA' ? `📜 *Texto:* ${report.textoBiblico}` : '*🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS*'}`;
+    const text = `*RELATÓRIO ICM - ${report.dayOfWeek}*\n*Data:* ${formattedDate}\n*Portão:* ${report.portao}\n${report.louvor !== 'NÃO HOUVE' ? `*Louvor:* ${report.louvor}\n` : ''}${report.palavra !== 'NÃO HOUVE' ? `*Palavra:* ${report.palavra}\n` : ''}${report.dayOfWeek !== 'QUA' ? `*Texto:* ${report.textoBiblico}` : 'CULTO DIRIGIDO PELO GRUPO DE SENHORAS'}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -233,12 +252,12 @@ const App: React.FC = () => {
             <button
               key={m}
               onClick={() => {
-                const monthReports = reports.filter(r => r.date.startsWith(m)).sort((a, b) => a.date.localeCompare(b.date));
+                const monthReports = reports.filter(r => r.date.startsWith(m)).sort(sortReports);
                 let text = `*RELATÓRIOS ICM - ${monthName.toUpperCase()} / ${year}*\n\n`;
-                monthReports.forEach(r => {
+                monthReports.reverse().forEach(r => { // Reverse for share text (oldest to newest within the month)
                   const day = r.date.split('-')[2];
-                  text += `📅 *Dia ${day} (${r.dayOfWeek}):*\n`;
-                  text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
+                  text += `*Dia ${day} (${r.dayOfWeek}):*\n`;
+                  text += `Portão: ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | Louvor: ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | Palavra: ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? 'CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `Texto: ${r.textoBiblico}`}\n\n`;
                 });
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                 setModalOpen(false);
@@ -257,11 +276,11 @@ const App: React.FC = () => {
   const handleShareAll = () => {
     if (reports.length === 0) return alert('Sem dados para compartilhar.');
     let text = `*HISTÓRICO COMPLETO - ICM SANTO ANTÔNIO II*\n\n`;
-    const sortedReports = [...reports].sort((a, b) => b.timestamp - a.timestamp);
+    const sortedReports = [...reports].sort(sortReports);
     sortedReports.forEach(r => {
       const formattedDate = new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR');
-      text += `📅 *${formattedDate} (${r.dayOfWeek}):*\n`;
-      text += `🚪 ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | 🎤 ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | 📖 ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? '🌸 CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `📜 ${r.textoBiblico}`}\n\n`;
+      text += `*${formattedDate} (${r.dayOfWeek}):*\n`;
+      text += `Portão: ${r.portao}${r.louvor !== 'NÃO HOUVE' ? ` | Louvor: ${r.louvor}` : ''}${r.palavra !== 'NÃO HOUVE' ? ` | Palavra: ${r.palavra}` : ''}\n${r.dayOfWeek === 'QUA' ? 'CULTO DIRIGIDO PELO GRUPO DE SENHORAS' : `Texto: ${r.textoBiblico}`}\n\n`;
     });
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
@@ -272,7 +291,7 @@ const App: React.FC = () => {
       if (task === 'Louvor') return r.louvor === worker;
       if (task === 'Palavra') return r.palavra === worker && r.palavra !== 'NÃO HOUVE';
       return false;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }).sort(sortReports);
 
     setModalTitle(`${worker} - ${task}`);
     setModalContent(
@@ -301,7 +320,7 @@ const App: React.FC = () => {
               (task === 'Louvor' && r.louvor === w) ||
               (task === 'Palavra' && r.palavra === w)
             ))
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            .sort(sortReports)[0];
           const diffTime = lastExec ? new Date().getTime() - new Date(lastExec.date + 'T00:00:00').getTime() : Infinity;
           const daysSince = lastExec ? Math.floor(diffTime / (1000 * 60 * 60 * 24)) : Infinity;
           return { name: w, lastDate: lastExec ? new Date(lastExec.date + 'T00:00:00') : null, daysSince };
@@ -532,7 +551,7 @@ const App: React.FC = () => {
                 r.louvor.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 r.palavra.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 r.textoBiblico.toLowerCase().includes(searchTerm.toLowerCase())
-              ).sort((a,b) => b.timestamp - a.timestamp).map(report => (
+              ).sort(sortReports).map(report => (
                 <div key={report.id} className="bg-white rounded-[1.5rem] p-6 shadow-md border border-slate-100 relative overflow-hidden animate-in slide-in-from-left-4">
                   <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-900"></div>
                   <div className="flex justify-between items-start mb-4">
